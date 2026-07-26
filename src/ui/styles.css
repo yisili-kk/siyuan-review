@@ -212,6 +212,22 @@
   background: var(--b3-theme-surface);
 }
 
+.siyuan-review-item--done {
+  border-color: var(--b3-theme-success, var(--b3-border-color));
+}
+
+.siyuan-review-item--skipped {
+  border-color: var(--b3-theme-warning, var(--b3-border-color));
+}
+
+.siyuan-review-item--done:disabled:hover {
+  border-color: var(--b3-theme-success, var(--b3-border-color));
+}
+
+.siyuan-review-item--skipped:disabled:hover {
+  border-color: var(--b3-theme-warning, var(--b3-border-color));
+}
+
 .siyuan-review-item--done .siyuan-review-item__title,
 .siyuan-review-item--skipped .siyuan-review-item__title {
   color: var(--b3-theme-on-surface);
