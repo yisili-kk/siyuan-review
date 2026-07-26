@@ -19,16 +19,39 @@ export function openSettingsDialog(input: {
     return;
   }
 
-  root.querySelector<HTMLButtonElement>('[data-action="save"]')?.addEventListener("click", () => {
+  const saveButton = root.querySelector<HTMLButtonElement>('[data-action="save"]');
+  const cancelButton = root.querySelector<HTMLButtonElement>('[data-action="cancel"]');
+  const initialSaveText = saveButton?.textContent ?? "保存";
+  let isSaving = false;
+
+  saveButton?.addEventListener("click", () => {
     void (async () => {
-      const nextSettings = readSettingsForm(root, input.settings);
-      await input.onSave(nextSettings);
-      showMessage("文档回顾设置已保存。", 2000);
-      dialog.destroy();
+      if (isSaving) {
+        return;
+      }
+
+      isSaving = true;
+      saveButton.disabled = true;
+      cancelButton?.setAttribute("disabled", "true");
+      saveButton.textContent = "保存中...";
+
+      try {
+        const nextSettings = readSettingsForm(root, input.settings);
+        await input.onSave(nextSettings);
+        showMessage("文档回顾设置已保存。", 2000);
+        dialog.destroy();
+      } catch (error) {
+        console.error("[siyuan-review] failed to save settings", error);
+        showMessage("保存设置失败，请稍后重试。", 3000, "error");
+        isSaving = false;
+        saveButton.disabled = false;
+        cancelButton?.removeAttribute("disabled");
+        saveButton.textContent = initialSaveText;
+      }
     })();
   });
 
-  root.querySelector<HTMLButtonElement>('[data-action="cancel"]')?.addEventListener("click", () => {
+  cancelButton?.addEventListener("click", () => {
     dialog.destroy();
   });
 }
@@ -116,14 +139,14 @@ function readSettingsForm(root: HTMLElement, current: ReviewSettings): ReviewSet
   return {
     ...current,
     enabledNotebooks,
-    dailyLimit: readNumber(root, "dailyLimit", current.dailyLimit),
+    dailyLimit: readNumber(root, "dailyLimit", current.dailyLimit, 1, 50),
     reviewTag: readString(root, "reviewTag", current.reviewTag),
     intervals: {
-      valuable: readNumber(root, "valuable", current.intervals.valuable),
-      normal: readNumber(root, "normal", current.intervals.normal),
-      needsSupplement: readNumber(root, "needsSupplement", current.intervals.needsSupplement),
-      needsRefactor: readNumber(root, "needsRefactor", current.intervals.needsRefactor),
-      skipped: readNumber(root, "skipped", current.intervals.skipped),
+      valuable: readNumber(root, "valuable", current.intervals.valuable, 1, 365),
+      normal: readNumber(root, "normal", current.intervals.normal, 1, 365),
+      needsSupplement: readNumber(root, "needsSupplement", current.intervals.needsSupplement, 1, 365),
+      needsRefactor: readNumber(root, "needsRefactor", current.intervals.needsRefactor, 1, 365),
+      skipped: readNumber(root, "skipped", current.intervals.skipped, 1, 365),
     },
     ai: {
       ...current.ai,
@@ -131,7 +154,7 @@ function readSettingsForm(root: HTMLElement, current: ReviewSettings): ReviewSet
       baseUrl: readOptionalString(root, "aiBaseUrl"),
       apiKey: readOptionalString(root, "aiApiKey"),
       model: readOptionalString(root, "aiModel"),
-      maxChars: readNumber(root, "aiMaxChars", current.ai.maxChars),
+      maxChars: readNumber(root, "aiMaxChars", current.ai.maxChars, 1000, 100000),
     },
   };
 }
@@ -176,10 +199,14 @@ function readOptionalString(root: HTMLElement, name: string): string {
   return root.querySelector<HTMLInputElement>(`input[name="${name}"]`)?.value.trim() ?? "";
 }
 
-function readNumber(root: HTMLElement, name: string, fallback: number): number {
+function readNumber(root: HTMLElement, name: string, fallback: number, min: number, max: number): number {
   const raw = root.querySelector<HTMLInputElement>(`input[name="${name}"]`)?.value;
   const value = Number(raw);
-  return Number.isFinite(value) && value > 0 ? value : fallback;
+  if (!Number.isFinite(value)) {
+    return fallback;
+  }
+
+  return Math.min(Math.max(Math.trunc(value), min), max);
 }
 
 function escapeHtml(value: string): string {
