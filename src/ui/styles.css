@@ -207,6 +207,29 @@
   color: var(--b3-theme-on-surface);
 }
 
+.siyuan-review-item--done,
+.siyuan-review-item--skipped {
+  background: var(--b3-theme-surface);
+}
+
+.siyuan-review-item--done .siyuan-review-item__title,
+.siyuan-review-item--skipped .siyuan-review-item__title {
+  color: var(--b3-theme-on-surface);
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+.siyuan-review-item--done .siyuan-review-item__badge {
+  background: var(--b3-theme-success-lightest, var(--b3-list-hover));
+  color: var(--b3-theme-success, var(--b3-theme-on-surface));
+}
+
+.siyuan-review-item--skipped .siyuan-review-item__badge {
+  background: var(--b3-theme-warning-lightest, var(--b3-list-hover));
+  color: var(--b3-theme-warning, var(--b3-theme-on-surface));
+}
+
 .siyuan-review-detail {
   display: grid;
   gap: 4px;
