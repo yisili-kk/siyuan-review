@@ -1,0 +1,22 @@
+{
+  "name": "siyuan-review",
+  "author": "onebean",
+  "url": "",
+  "version": "0.1.0",
+  "minAppVersion": "3.0.0",
+  "backends": ["windows", "linux", "darwin"],
+  "frontends": ["desktop"],
+  "displayName": {
+    "default": "Review",
+    "zh_CN": "文档回顾"
+  },
+  "description": {
+    "default": "A daily document review workflow for SiYuan.",
+    "zh_CN": "在思源中管理每日文档回顾流程。"
+  },
+  "readme": {
+    "default": "README.md",
+    "zh_CN": "README.md"
+  },
+  "keywords": ["review", "knowledge-management", "spaced-review"]
+}

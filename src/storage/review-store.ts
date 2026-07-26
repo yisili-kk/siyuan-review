@@ -1,0 +1,55 @@
+import { DATA_SCHEMA_VERSION, REVIEW_DATA_FILE } from "../constants";
+import type { DailyPlan, ReviewData, ReviewDocState, ReviewEvent } from "../types/review";
+import type { PersistAdapter } from "./persist-adapter";
+import { migrateReviewData } from "./migrations";
+
+export class ReviewStore {
+  private data: ReviewData | undefined;
+
+  constructor(private readonly adapter: PersistAdapter) {}
+
+  async load(): Promise<ReviewData> {
+    const saved = await this.adapter.loadData<unknown>(REVIEW_DATA_FILE);
+    this.data = migrateReviewData(saved);
+    return this.data;
+  }
+
+  getData(): ReviewData {
+    if (!this.data) {
+      this.data = createEmptyReviewData();
+    }
+
+    return this.data;
+  }
+
+  async save(): Promise<void> {
+    await this.adapter.saveData(REVIEW_DATA_FILE, this.getData());
+  }
+
+  upsertDocs(docs: ReviewDocState[]): void {
+    const data = this.getData();
+    for (const doc of docs) {
+      data.docs[doc.docId] = {
+        ...data.docs[doc.docId],
+        ...doc,
+      };
+    }
+  }
+
+  setDailyPlan(plan: DailyPlan): void {
+    this.getData().dailyPlans[plan.date] = plan;
+  }
+
+  addHistory(event: ReviewEvent): void {
+    this.getData().history.push(event);
+  }
+}
+
+export function createEmptyReviewData(): ReviewData {
+  return {
+    schemaVersion: DATA_SCHEMA_VERSION,
+    docs: {},
+    dailyPlans: {},
+    history: [],
+  };
+}

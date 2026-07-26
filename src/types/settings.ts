@@ -1,0 +1,26 @@
+export type AiContentStrategy = "full";
+
+export type ReviewIntervals = {
+  valuable: number;
+  normal: number;
+  needsSupplement: number;
+  needsRefactor: number;
+  skipped: number;
+};
+
+export type AiSettings = {
+  enabled: boolean;
+  baseUrl: string;
+  apiKey: string;
+  model: string;
+  contentStrategy: AiContentStrategy;
+  maxChars: number;
+};
+
+export type ReviewSettings = {
+  enabledNotebooks: string[];
+  dailyLimit: number;
+  reviewTag: string;
+  intervals: ReviewIntervals;
+  ai: AiSettings;
+};
