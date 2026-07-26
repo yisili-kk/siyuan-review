@@ -71,58 +71,60 @@ function buildSettingsHtml(settings: ReviewSettings, notebooks: NotebookInfo[]):
 
   return `
 <div class="siyuan-review-settings">
-  <section class="siyuan-review-setting-section">
-    <div class="siyuan-review-setting-section__head">
-      <h3>启用笔记本</h3>
-      <p>只从选中的笔记本中扫描带有回顾标签的文档。</p>
-    </div>
-    <div class="siyuan-review-notebook-list">${notebookItems || '<p class="siyuan-review-setting-empty">没有可用笔记本。</p>'}</div>
-  </section>
+  <div class="siyuan-review-settings__body">
+    <section class="siyuan-review-setting-section">
+      <div class="siyuan-review-setting-section__head">
+        <h3>启用笔记本</h3>
+        <p>只从选中的笔记本中扫描带有回顾标签的文档。</p>
+      </div>
+      <div class="siyuan-review-notebook-list">${notebookItems || '<p class="siyuan-review-setting-empty">没有可用笔记本。</p>'}</div>
+    </section>
 
-  <section class="siyuan-review-setting-section">
-    <div class="siyuan-review-setting-section__head">
-      <h3>基础规则</h3>
-      <p>控制每天生成多少回顾文档，以及用哪个标签识别候选文档。</p>
-    </div>
-    <div class="siyuan-review-setting-fields siyuan-review-setting-fields--two">
-      ${textInput("dailyLimit", "每日回顾数量", "每天最多推送的文档数量。", String(settings.dailyLimit), "number", "1", "50")}
-      ${textInput("reviewTag", "识别标签", "文档中包含这个标签时进入候选池。", settings.reviewTag)}
-    </div>
-  </section>
+    <section class="siyuan-review-setting-section">
+      <div class="siyuan-review-setting-section__head">
+        <h3>基础规则</h3>
+        <p>控制每天生成多少回顾文档，以及用哪个标签识别候选文档。</p>
+      </div>
+      <div class="siyuan-review-setting-fields siyuan-review-setting-fields--two">
+        ${textInput("dailyLimit", "每日回顾数量", "每天最多推送的文档数量。", String(settings.dailyLimit), "number", "1", "50")}
+        ${textInput("reviewTag", "识别标签", "文档中包含这个标签时进入候选池。", settings.reviewTag)}
+      </div>
+    </section>
 
-  <section class="siyuan-review-setting-section">
-    <div class="siyuan-review-setting-section__head">
-      <h3>反馈间隔</h3>
-      <p>提交反馈后，插件会按下面的天数安排下一次回顾。</p>
-    </div>
-    <div class="siyuan-review-interval-grid">
-      ${numberInput("valuable", "已补充想法", settings.intervals.valuable)}
-      ${numberInput("normal", "已完成阅读", settings.intervals.normal)}
-      ${numberInput("needsSupplement", "需要补充", settings.intervals.needsSupplement)}
-      ${numberInput("needsRefactor", "需要重构", settings.intervals.needsRefactor)}
-      ${numberInput("skipped", "暂时跳过", settings.intervals.skipped)}
-    </div>
-  </section>
+    <section class="siyuan-review-setting-section">
+      <div class="siyuan-review-setting-section__head">
+        <h3>反馈间隔</h3>
+        <p>提交反馈后，插件会按下面的天数安排下一次回顾。</p>
+      </div>
+      <div class="siyuan-review-interval-grid">
+        ${numberInput("valuable", "已补充想法", settings.intervals.valuable)}
+        ${numberInput("normal", "已完成阅读", settings.intervals.normal)}
+        ${numberInput("needsSupplement", "需要补充", settings.intervals.needsSupplement)}
+        ${numberInput("needsRefactor", "需要重构", settings.intervals.needsRefactor)}
+        ${numberInput("skipped", "暂时跳过", settings.intervals.skipped)}
+      </div>
+    </section>
 
-  <section class="siyuan-review-setting-section">
-    <div class="siyuan-review-setting-section__head">
-      <h3>AI 增强</h3>
-      <p>开启后，打开文档时会尝试生成更贴合内容的回顾问题。</p>
-    </div>
-    <label class="siyuan-review-ai-toggle">
-      <span>
-        <strong>启用 AI 问题生成</strong>
-        <em>未启用时仍会显示默认模板问题。</em>
-      </span>
-      <input class="b3-switch" type="checkbox" name="aiEnabled" ${settings.ai.enabled ? "checked" : ""}>
-    </label>
-    <div class="siyuan-review-setting-fields">
-      ${textInput("aiBaseUrl", "Base URL", "OpenAI 兼容接口地址。", settings.ai.baseUrl)}
-      ${textInput("aiApiKey", "API Key", "密钥会保存在本地插件配置中。", settings.ai.apiKey, "password")}
-      ${textInput("aiModel", "模型名", "例如 gpt-4.1-mini、deepseek-chat 或本地模型名。", settings.ai.model)}
-      ${textInput("aiMaxChars", "最大字符数", "发送给 AI 的文档内容上限。", String(settings.ai.maxChars), "number", "1000", "100000")}
-    </div>
-  </section>
+    <section class="siyuan-review-setting-section">
+      <div class="siyuan-review-setting-section__head">
+        <h3>AI 增强</h3>
+        <p>开启后，打开文档时会尝试生成更贴合内容的回顾问题。</p>
+      </div>
+      <label class="siyuan-review-ai-toggle">
+        <span>
+          <strong>启用 AI 问题生成</strong>
+          <em>未启用时仍会显示默认模板问题。</em>
+        </span>
+        <input class="b3-switch" type="checkbox" name="aiEnabled" ${settings.ai.enabled ? "checked" : ""}>
+      </label>
+      <div class="siyuan-review-setting-fields">
+        ${textInput("aiBaseUrl", "Base URL", "OpenAI 兼容接口地址。", settings.ai.baseUrl)}
+        ${textInput("aiApiKey", "API Key", "密钥会保存在本地插件配置中。", settings.ai.apiKey, "password")}
+        ${textInput("aiModel", "模型名", "例如 gpt-4.1-mini、deepseek-chat 或本地模型名。", settings.ai.model)}
+        ${textInput("aiMaxChars", "最大字符数", "发送给 AI 的文档内容上限。", String(settings.ai.maxChars), "number", "1000", "100000")}
+      </div>
+    </section>
+  </div>
 
   <footer class="siyuan-review-setting-actions">
     <button class="b3-button b3-button--outline" data-action="cancel">取消</button>

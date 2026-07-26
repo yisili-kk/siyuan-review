@@ -350,10 +350,16 @@
   flex-direction: column;
   gap: 0;
   max-height: min(720px, 78vh);
-  overflow: auto;
-  padding: 0 24px 18px;
+  min-height: 0;
+  overflow: hidden;
   color: var(--b3-theme-on-background);
   font-size: 13px;
+}
+
+.siyuan-review-settings__body {
+  min-height: 0;
+  overflow: auto;
+  padding: 0 24px 18px;
 }
 
 .siyuan-review-settings h3 {
@@ -496,17 +502,21 @@
 }
 
 .siyuan-review-setting-actions {
-  position: sticky;
-  bottom: -16px;
   display: flex;
+  flex: 0 0 auto;
   justify-content: flex-end;
   gap: 8px;
-  padding: 14px 0 0;
+  padding: 12px 24px;
+  border-top: 1px solid var(--b3-border-color);
   background: var(--b3-theme-surface);
 }
 
 @media (max-width: 820px) {
-  .siyuan-review-settings {
+  .siyuan-review-settings__body {
+    padding-inline: 14px;
+  }
+
+  .siyuan-review-setting-actions {
     padding-inline: 14px;
   }
 
