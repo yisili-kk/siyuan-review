@@ -314,6 +314,28 @@
   justify-content: center;
 }
 
+.siyuan-review-status-summary {
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid var(--b3-border-color);
+  border-radius: 8px;
+  background: var(--b3-theme-background);
+}
+
+.siyuan-review-status-summary span {
+  color: var(--b3-theme-success, var(--b3-theme-on-background));
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.siyuan-review-status-summary p {
+  margin: 0;
+  color: var(--b3-theme-on-surface);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 .siyuan-review-settings-dialog .b3-dialog__container {
   max-width: min(960px, calc(100vw - 48px));
 }

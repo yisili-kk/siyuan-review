@@ -8,7 +8,7 @@ export function renderTodayList(plan: DailyPlan, docs: Record<string, ReviewDocS
       const statusClass = `siyuan-review-item--${item.status}`;
       const status = statusLabel(item.status);
       const meta = metaLabel(item.status, item.reason, doc);
-      const disabled = item.status === "done" || item.status === "skipped" || item.status === "missing";
+      const disabled = item.status === "missing";
 
       return `
 <button class="siyuan-review-item ${statusClass}" ${disabled ? "" : `data-doc-id="${escapeHtml(item.docId)}"`} ${disabled ? "disabled" : ""}>

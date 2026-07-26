@@ -123,21 +123,29 @@ export default class SiyuanReviewPlugin extends Plugin {
     const data = store.getData();
     const plan = data.dailyPlans[toDateKey()];
     const doc = data.docs[docId];
+    const planItem = plan?.items.find((item) => item.docId === docId);
 
-    if (!plan || !doc) {
+    if (!plan || !doc || !planItem) {
       showMessage("这个文档暂时不可用。", 3000, "error");
+      return;
+    }
+
+    if (planItem.status === "missing") {
+      showMessage("这个文档已不在当前回顾池中。", 3000, "error");
       return;
     }
 
     try {
       await openDocument(this.app, docId);
-      startReview(plan, docId);
-      store.setDailyPlan(plan);
-      await store.save();
+      if (planItem.status !== "done" && planItem.status !== "skipped") {
+        startReview(plan, docId);
+        store.setDailyPlan(plan);
+        await store.save();
+      }
       this.selectedDocId = docId;
       this.renderCurrentDock();
       this.topbar?.setBadge(getIncompleteCount(plan));
-      if (shouldAutoGenerateQuestions(doc)) {
+      if (planItem.status !== "done" && planItem.status !== "skipped" && shouldAutoGenerateQuestions(doc)) {
         void this.enhanceQuestions(docId);
       }
     } catch (error) {

@@ -80,6 +80,8 @@ function buildDockHtml(snapshot: DockSnapshot): string {
   const total = plan?.items.length ?? 0;
   const pending = plan?.items.filter((item) => item.status === "pending" || item.status === "reviewing").length ?? 0;
   const selectedDoc = snapshot.selectedDocId ? snapshot.docs[snapshot.selectedDocId] : undefined;
+  const selectedItem = selectedDoc ? plan?.items.find((item) => item.docId === selectedDoc.docId) : undefined;
+  const terminalStatus = isTerminalItemStatus(selectedItem?.status) ? selectedItem.status : undefined;
   const isGeneratingQuestions = selectedDoc
     ? (snapshot.generatingQuestionDocIds ?? []).includes(selectedDoc.docId)
     : false;
@@ -121,10 +123,14 @@ function buildDockHtml(snapshot: DockSnapshot): string {
       ${isGeneratingQuestions ? '<span class="siyuan-review-loading-note">正在生成问题，请稍候</span>' : ""}
     </div>
   </section>
-  <section class="siyuan-review-section">
-    <h3>本次反馈</h3>
-    <div class="siyuan-review-feedback">${renderFeedbackButtons({ disabled: isSubmittingFeedback })}</div>
-  </section>
+  ${
+    terminalStatus
+      ? renderCompletedReviewSummary(terminalStatus, selectedDoc)
+      : `<section class="siyuan-review-section">
+          <h3>本次反馈</h3>
+          <div class="siyuan-review-feedback">${renderFeedbackButtons({ disabled: isSubmittingFeedback })}</div>
+        </section>`
+  }
 </div>`;
   }
 
@@ -198,4 +204,22 @@ function bindEvents(root: HTMLElement, snapshot: DockSnapshot, actions: DockActi
 function renderLocal(root: HTMLElement, snapshot: DockSnapshot, actions: DockActions): void {
   root.innerHTML = buildDockHtml(snapshot);
   bindEvents(root, snapshot, actions);
+}
+
+function renderCompletedReviewSummary(status: "done" | "skipped", doc: ReviewDocState): string {
+  const statusText = status === "done" ? "已完成" : "已跳过";
+  const nextReviewText = doc.nextReviewAt ? `下次回顾 ${doc.nextReviewAt}` : "已记录本次回顾";
+
+  return `
+<section class="siyuan-review-section">
+  <h3>回顾状态</h3>
+  <div class="siyuan-review-status-summary">
+    <span>${statusText}</span>
+    <p>${nextReviewText}</p>
+  </div>
+</section>`;
+}
+
+function isTerminalItemStatus(status: string | undefined): status is "done" | "skipped" {
+  return status === "done" || status === "skipped";
 }
