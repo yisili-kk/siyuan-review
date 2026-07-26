@@ -3,7 +3,7 @@ import { DEFAULT_SETTINGS } from "./constants";
 import { buildDailyPlan, getIncompleteCount, syncDailyPlanAvailability } from "./core/scheduler";
 import { scanReviewCandidates, mergeCandidatesWithStoredState } from "./core/document-indexer";
 import { completeReview, startReview } from "./core/review-service";
-import { canUseAiQuestionGeneration, getReviewQuestions } from "./core/question-service";
+import { canUseAiQuestionGeneration, getReviewQuestions, shouldAutoGenerateQuestions } from "./core/question-service";
 import { SettingsStore } from "./storage/settings-store";
 import { ReviewStore } from "./storage/review-store";
 import type { PersistAdapter } from "./storage/persist-adapter";
@@ -137,7 +137,9 @@ export default class SiyuanReviewPlugin extends Plugin {
       this.selectedDocId = docId;
       this.renderCurrentDock();
       this.topbar?.setBadge(getIncompleteCount(plan));
-      void this.enhanceQuestions(docId);
+      if (shouldAutoGenerateQuestions(doc)) {
+        void this.enhanceQuestions(docId);
+      }
     } catch (error) {
       console.error("[siyuan-review] failed to open document", error);
       showMessage("打开文档失败。", 3000, "error");

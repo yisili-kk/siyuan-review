@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { canUseAiQuestionGeneration, getReviewQuestions } from "../src/core/question-service";
+import { canUseAiQuestionGeneration, getReviewQuestions, shouldAutoGenerateQuestions } from "../src/core/question-service";
 import { TEMPLATE_QUESTIONS } from "../src/constants";
 import type { ReviewDocState } from "../src/types/review";
 import type { AiSettings } from "../src/types/settings";
@@ -32,6 +32,20 @@ describe("question-service", () => {
     expect(canUseAiQuestionGeneration(aiSettings({ baseUrl: "" }))).toBe(false);
     expect(canUseAiQuestionGeneration(aiSettings({ model: "" }))).toBe(false);
     expect(canUseAiQuestionGeneration(aiSettings({ enabled: false }))).toBe(false);
+  });
+
+  it("auto-generates questions only when the document has no question cache", () => {
+    expect(shouldAutoGenerateQuestions(doc)).toBe(true);
+    expect(
+      shouldAutoGenerateQuestions({
+        ...doc,
+        questionCache: {
+          source: "ai",
+          questions: ["Cached question"],
+          generatedAt: "2026-07-26T08:00:00.000Z",
+        },
+      }),
+    ).toBe(false);
   });
 });
 
