@@ -7,6 +7,7 @@ export function renderTodayList(plan: DailyPlan, docs: Record<string, ReviewDocS
       const title = doc?.title ?? "文档不可用";
       const statusClass = `siyuan-review-item--${item.status}`;
       const status = statusLabel(item.status);
+      const meta = metaLabel(item.status, item.reason, doc);
       const disabled = item.status === "done" || item.status === "skipped" || item.status === "missing";
 
       return `
@@ -15,10 +16,22 @@ export function renderTodayList(plan: DailyPlan, docs: Record<string, ReviewDocS
     <span class="siyuan-review-item__title">${escapeHtml(title)}</span>
     <span class="siyuan-review-item__badge">${escapeHtml(status)}</span>
   </span>
-  <span class="siyuan-review-item__reason">${reasonLabel(item.reason)}</span>
+  <span class="siyuan-review-item__reason">${escapeHtml(meta)}</span>
 </button>`;
     })
     .join("");
+}
+
+function metaLabel(status: string, reason: string, doc: ReviewDocState | undefined): string {
+  if (status === "done" || status === "skipped") {
+    return doc?.nextReviewAt ? `下次回顾 ${doc.nextReviewAt}` : "已记录本次回顾";
+  }
+
+  if (status === "missing") {
+    return "不在当前回顾池";
+  }
+
+  return reasonLabel(reason);
 }
 
 function reasonLabel(reason: string): string {
