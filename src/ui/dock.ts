@@ -118,10 +118,7 @@ function buildDockHtml(snapshot: DockSnapshot): string {
   <section class="siyuan-review-section">
     <h3>回顾问题</h3>
     ${renderQuestionPanel(selectedDoc.questionCache?.questions ?? getTemplateQuestions())}
-    <div class="siyuan-review-question-actions">
-      <button class="b3-button b3-button--outline ${isGeneratingQuestions ? "siyuan-review-button--loading" : ""}" data-action="regenerate-questions" ${isGeneratingQuestions ? 'disabled aria-busy="true"' : ""}>${isGeneratingQuestions ? "生成中..." : "重新生成问题"}</button>
-      ${isGeneratingQuestions ? '<span class="siyuan-review-loading-note">正在生成问题，请稍候</span>' : ""}
-    </div>
+    ${terminalStatus ? "" : renderQuestionActions(isGeneratingQuestions)}
   </section>
   ${
     terminalStatus
@@ -204,6 +201,14 @@ function bindEvents(root: HTMLElement, snapshot: DockSnapshot, actions: DockActi
 function renderLocal(root: HTMLElement, snapshot: DockSnapshot, actions: DockActions): void {
   root.innerHTML = buildDockHtml(snapshot);
   bindEvents(root, snapshot, actions);
+}
+
+function renderQuestionActions(isGeneratingQuestions: boolean): string {
+  return `
+    <div class="siyuan-review-question-actions">
+      <button class="b3-button b3-button--outline ${isGeneratingQuestions ? "siyuan-review-button--loading" : ""}" data-action="regenerate-questions" ${isGeneratingQuestions ? 'disabled aria-busy="true"' : ""}>${isGeneratingQuestions ? "生成中..." : "重新生成问题"}</button>
+      ${isGeneratingQuestions ? '<span class="siyuan-review-loading-note">正在生成问题，请稍候</span>' : ""}
+    </div>`;
 }
 
 function renderCompletedReviewSummary(status: "done" | "skipped", doc: ReviewDocState): string {

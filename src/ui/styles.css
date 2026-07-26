@@ -261,10 +261,15 @@
   color: var(--b3-theme-on-background);
   font-size: 13px;
   line-height: 1.8;
+  cursor: text;
+  -webkit-user-select: text;
+  user-select: text;
 }
 
 .siyuan-review-questions li {
   margin: 0 0 6px;
+  -webkit-user-select: text;
+  user-select: text;
 }
 
 .siyuan-review-question-actions {
