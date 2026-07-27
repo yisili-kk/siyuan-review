@@ -58,6 +58,43 @@ describe("buildDailyPlan", () => {
     expect(plan.items.map((item) => item.reason)).toEqual(["due", "priority", "neverReviewed"]);
   });
 
+  it("prioritizes longer overdue documents when there are more due docs than slots", () => {
+    vi.spyOn(Math, "random").mockReturnValue(0);
+
+    const plan = buildDailyPlan({
+      date: "2026-07-26",
+      dailyLimit: 2,
+      candidates: [
+        candidate("due-today", { nextReviewAt: "2026-07-26", lastReviewedAt: "2026-07-01" }),
+        candidate("overdue-one-week", { nextReviewAt: "2026-07-19", lastReviewedAt: "2026-07-01" }),
+        candidate("overdue-three-weeks", { nextReviewAt: "2026-07-05", lastReviewedAt: "2026-07-01" }),
+      ],
+      nowIso: "2026-07-26T09:00:00.000Z",
+    });
+
+    expect(plan.items.map((item) => item.docId)).toEqual(["overdue-three-weeks", "overdue-one-week"]);
+    expect(plan.items.every((item) => item.reason === "due")).toBe(true);
+  });
+
+  it("leaves due documents unchanged when they do not fit today's plan", () => {
+    vi.spyOn(Math, "random").mockReturnValue(0);
+    const dueToday = candidate("due-today", { nextReviewAt: "2026-07-26", lastReviewedAt: "2026-07-01" });
+
+    const plan = buildDailyPlan({
+      date: "2026-07-26",
+      dailyLimit: 1,
+      candidates: [
+        dueToday,
+        candidate("overdue-three-weeks", { nextReviewAt: "2026-07-05", lastReviewedAt: "2026-07-01" }),
+      ],
+      nowIso: "2026-07-26T09:00:00.000Z",
+    });
+
+    expect(plan.items.map((item) => item.docId)).toEqual(["overdue-three-weeks"]);
+    expect(dueToday.nextReviewAt).toBe("2026-07-26");
+    expect(dueToday.status).toBeUndefined();
+  });
+
   it("marks non-terminal plan items as missing when they leave the review pool", () => {
     const plan = syncDailyPlanAvailability(
       {

@@ -22,6 +22,7 @@ type ScoredCandidate = {
 };
 
 const TERMINAL_STATUSES = new Set(["done", "skipped"]);
+const OVERDUE_DAY_WEIGHT = 20;
 
 export function buildDailyPlan(input: BuildDailyPlanInput): DailyPlan {
   const nowIso = input.nowIso ?? new Date().toISOString();
@@ -117,7 +118,7 @@ function scoreCandidate(candidate: ReviewCandidate, date: string): ScoredCandida
   const statusPriority = candidate.status === "needsRefactor" ? 300 : candidate.status === "needsSupplement" ? 250 : 0;
   const neverReviewedPriority = candidate.lastReviewedAt ? 0 : 200;
   const oldestReviewedPriority = candidate.lastReviewedAt ? daysSince(candidate.lastReviewedAt, date) : 0;
-  const duePriority = due ? 1000 : 0;
+  const overduePriority = getOverduePriority(candidate.nextReviewAt, date);
   const randomJitter = Math.random();
 
   const reason = getReason(candidate, date);
@@ -125,8 +126,14 @@ function scoreCandidate(candidate: ReviewCandidate, date: string): ScoredCandida
   return {
     candidate,
     reason,
-    score: duePriority + statusPriority + neverReviewedPriority + oldestReviewedPriority + priorityBoost + randomJitter,
+    score: overduePriority + statusPriority + neverReviewedPriority + oldestReviewedPriority + priorityBoost + randomJitter,
   };
+}
+
+function getOverduePriority(nextReviewAt: string | undefined, date: string): number {
+  return isDue(nextReviewAt, date) && nextReviewAt
+    ? 1000 + daysSince(nextReviewAt, date) * OVERDUE_DAY_WEIGHT
+    : 0;
 }
 
 function getReason(candidate: ReviewCandidate, date: string): DailyPlanReason {
