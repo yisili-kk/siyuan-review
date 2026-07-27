@@ -21,6 +21,7 @@ export function mergeCandidatesWithStoredState(
     ...storedDocs[candidate.docId],
     ...candidate,
     exists: true,
+    missingSince: undefined,
   }));
 }
 

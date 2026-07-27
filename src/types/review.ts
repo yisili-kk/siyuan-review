@@ -43,6 +43,7 @@ export type ReviewDocState = {
   status?: ReviewDocStatus;
   priorityBoost?: number;
   questionCache?: QuestionCache;
+  missingSince?: string;
 };
 
 export type ReviewCandidate = ReviewDocState & {

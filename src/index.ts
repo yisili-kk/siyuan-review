@@ -7,7 +7,7 @@ import { canUseAiQuestionGeneration, getReviewQuestions, shouldAutoGenerateQuest
 import { SettingsStore } from "./storage/settings-store";
 import { ReviewStore } from "./storage/review-store";
 import type { PersistAdapter } from "./storage/persist-adapter";
-import { pruneReviewData } from "./storage/data-retention";
+import { markMissingDocs, pruneReviewData } from "./storage/data-retention";
 import { toDateKey } from "./utils/date";
 import { createTopbarController, type TopbarController } from "./ui/topbar";
 import { createDockController, type DockController } from "./ui/dock";
@@ -71,19 +71,19 @@ export default class SiyuanReviewPlugin extends Plugin {
     this.dock?.dispose();
   }
 
-  private async refreshTodayPlan(): Promise<void> {
-    await this.createOrRefreshTodayPlan(false);
+  private async refreshTodayPlan(): Promise<boolean> {
+    return this.createOrRefreshTodayPlan(false);
   }
 
-  private async regenerateTodayPlan(): Promise<void> {
-    await this.createOrRefreshTodayPlan(true);
+  private async regenerateTodayPlan(): Promise<boolean> {
+    return this.createOrRefreshTodayPlan(true);
   }
 
-  private async createOrRefreshTodayPlan(forceRegenerate: boolean): Promise<void> {
+  private async createOrRefreshTodayPlan(forceRegenerate: boolean): Promise<boolean> {
     const settings = (await this.settingsStore?.load()) ?? DEFAULT_SETTINGS;
     const store = this.reviewStore;
     if (!store) {
-      return;
+      return false;
     }
 
     const data = store.getData();
@@ -92,6 +92,7 @@ export default class SiyuanReviewPlugin extends Plugin {
     try {
       const candidates = mergeCandidatesWithStoredState(await scanReviewCandidates(settings), data.docs);
       store.upsertDocs(candidates);
+      store.upsertDocs(markMissingDocs(data.docs, candidates.map((candidate) => candidate.docId), date));
 
       const existingPlan = data.dailyPlans[date];
       const plan =
@@ -110,9 +111,11 @@ export default class SiyuanReviewPlugin extends Plugin {
       this.topbar?.setBadge(getIncompleteCount(plan));
       this.renderCurrentDock();
       await this.notifyTodayPlanOnce(date, plan.items.length);
+      return true;
     } catch (error) {
       console.error("[siyuan-review] failed to refresh today plan", error);
       showMessage("文档回顾列表刷新失败，请稍后重试。", 3000, "error");
+      return false;
     }
   }
 
@@ -220,7 +223,7 @@ export default class SiyuanReviewPlugin extends Plugin {
         notebooks,
         onSave: async (nextSettings) => {
           await settingsStore.save(nextSettings);
-          await this.regenerateTodayPlan();
+          return { refreshed: await this.regenerateTodayPlan() };
         },
       });
     } catch (error) {

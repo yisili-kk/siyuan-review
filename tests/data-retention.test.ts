@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { pruneReviewData } from "../src/storage/data-retention";
+import { markMissingDocs, pruneReviewData } from "../src/storage/data-retention";
 import type { DailyPlan, ReviewData, ReviewDocState, ReviewEvent } from "../src/types/review";
 import type { DataRetentionSettings } from "../src/types/settings";
 
@@ -42,14 +42,14 @@ describe("pruneReviewData", () => {
     expect(result.removedHistoryEvents).toBe(1);
   });
 
-  it("removes stale unreferenced docs but keeps referenced and protected docs", () => {
+  it("removes stale missing docs but keeps referenced and protected docs", () => {
     const result = pruneReviewData(
       data({
         docs: {
-          stale: doc("stale", { lastReviewedAt: "2026-01-01" }),
-          inPlan: doc("inPlan", { lastReviewedAt: "2026-01-01" }),
-          inHistory: doc("inHistory", { lastReviewedAt: "2026-01-01" }),
-          protectedDoc: doc("protectedDoc", { lastReviewedAt: "2026-01-01" }),
+          stale: doc("stale", { missingSince: "2026-01-01" }),
+          inPlan: doc("inPlan", { missingSince: "2026-01-01" }),
+          inHistory: doc("inHistory", { missingSince: "2026-01-01" }),
+          protectedDoc: doc("protectedDoc", { missingSince: "2026-01-01" }),
           recent: doc("recent", { lastReviewedAt: "2026-07-01" }),
           unknownAge: doc("unknownAge"),
         },
@@ -71,6 +71,38 @@ describe("pruneReviewData", () => {
       "unknownAge",
     ]);
     expect(result.removedDocs).toBe(1);
+  });
+
+  it("does not prune docs that left the pool before their missing retention window ends", () => {
+    const result = pruneReviewData(
+      data({
+        docs: {
+          recentlyMissing: doc("recentlyMissing", {
+            lastReviewedAt: "2026-01-01",
+            missingSince: "2026-07-01",
+          }),
+        },
+      }),
+      settings,
+      "2026-07-27",
+    );
+
+    expect(result.data.docs.recentlyMissing).toBeDefined();
+    expect(result.removedDocs).toBe(0);
+  });
+
+  it("marks docs as missing once they leave the current candidate pool", () => {
+    const marked = markMissingDocs(
+      {
+        active: doc("active"),
+        missing: doc("missing"),
+        alreadyMarked: doc("alreadyMarked", { missingSince: "2026-07-01" }),
+      },
+      ["active"],
+      "2026-07-27",
+    );
+
+    expect(marked).toEqual([doc("missing", { missingSince: "2026-07-27" })]);
   });
 
   it("does nothing when retention is disabled", () => {

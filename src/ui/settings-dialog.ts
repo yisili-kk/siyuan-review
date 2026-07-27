@@ -5,7 +5,7 @@ import type { ReviewSettings } from "../types/settings";
 export function openSettingsDialog(input: {
   settings: ReviewSettings;
   notebooks: NotebookInfo[];
-  onSave(settings: ReviewSettings): Promise<void>;
+  onSave(settings: ReviewSettings): Promise<{ refreshed: boolean }>;
 }): void {
   const dialog = new Dialog({
     title: "文档回顾设置",
@@ -37,8 +37,8 @@ export function openSettingsDialog(input: {
 
       try {
         const nextSettings = readSettingsForm(root, input.settings);
-        await input.onSave(nextSettings);
-        showMessage("文档回顾设置已保存。", 2000);
+        const result = await input.onSave(nextSettings);
+        showMessage(result.refreshed ? "文档回顾设置已保存。" : "设置已保存，回顾列表刷新失败。", 3000, result.refreshed ? "info" : "error");
         dialog.destroy();
       } catch (error) {
         console.error("[siyuan-review] failed to save settings", error);

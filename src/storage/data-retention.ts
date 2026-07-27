@@ -10,6 +10,20 @@ export type DataRetentionResult = {
   removedDocs: number;
 };
 
+export function markMissingDocs(
+  docs: Record<string, ReviewDocState>,
+  availableDocIds: Iterable<string>,
+  todayKey: string,
+): ReviewDocState[] {
+  const available = new Set(availableDocIds);
+  return Object.values(docs)
+    .filter((doc) => !available.has(doc.docId) && !doc.missingSince)
+    .map((doc) => ({
+      ...doc,
+      missingSince: todayKey,
+    }));
+}
+
 export function pruneReviewData(
   data: ReviewData,
   settings: DataRetentionSettings,
@@ -105,20 +119,11 @@ function pruneDocs(input: {
       return true;
     }
 
-    const lastKnownDate = getLastKnownDate(doc);
-    return lastKnownDate === undefined || lastKnownDate >= cutoffKey;
+    return doc.missingSince === undefined || doc.missingSince >= cutoffKey;
   });
 
   return {
     value: Object.fromEntries(kept),
     removed: entries.length - kept.length,
   };
-}
-
-function getLastKnownDate(doc: ReviewDocState): string | undefined {
-  if (doc.lastReviewedAt) {
-    return doc.lastReviewedAt;
-  }
-
-  return doc.questionCache?.generatedAt.slice(0, 10);
 }
