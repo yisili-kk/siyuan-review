@@ -1,4 +1,4 @@
-import { DATA_SCHEMA_VERSION, REVIEW_DATA_FILE } from "../constants";
+import { DATA_SCHEMA_VERSION, REVIEW_DATA_BACKUP_FILE, REVIEW_DATA_FILE } from "../constants";
 import type { DailyPlan, ReviewData, ReviewDocState, ReviewEvent } from "../types/review";
 import type { PersistAdapter } from "./persist-adapter";
 import { migrateReviewData } from "./migrations";
@@ -24,6 +24,14 @@ export class ReviewStore {
 
   async save(): Promise<void> {
     await this.adapter.saveData(REVIEW_DATA_FILE, this.getData());
+  }
+
+  async saveBackup(): Promise<void> {
+    await this.adapter.saveData(REVIEW_DATA_BACKUP_FILE, this.getData());
+  }
+
+  replaceData(data: ReviewData): void {
+    this.data = data;
   }
 
   upsertDocs(docs: ReviewDocState[]): void {

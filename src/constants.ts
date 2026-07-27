@@ -4,6 +4,7 @@ import type { ReviewSettings } from "./types/settings";
 export const DATA_SCHEMA_VERSION = 1;
 export const SETTINGS_FILE = "settings.json";
 export const REVIEW_DATA_FILE = "review-data.json";
+export const REVIEW_DATA_BACKUP_FILE = "review-data.backup.json";
 
 export const TEMPLATE_QUESTIONS: TemplateQuestion[] = [
   "这篇文档现在最有价值的部分是什么？",
@@ -31,5 +32,11 @@ export const DEFAULT_SETTINGS: ReviewSettings = {
     model: "",
     contentStrategy: "full",
     maxChars: 16000,
+  },
+  dataRetention: {
+    enabled: true,
+    keepDailyPlansDays: 180,
+    keepHistoryLimit: 1000,
+    pruneMissingDocsDays: 90,
   },
 };

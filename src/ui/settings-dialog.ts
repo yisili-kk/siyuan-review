@@ -124,6 +124,25 @@ function buildSettingsHtml(settings: ReviewSettings, notebooks: NotebookInfo[]):
         ${textInput("aiMaxChars", "最大字符数", "发送给 AI 的文档内容上限。", String(settings.ai.maxChars), "number", "1000", "100000")}
       </div>
     </section>
+
+    <section class="siyuan-review-setting-section">
+      <div class="siyuan-review-setting-section__head">
+        <h3>数据维护</h3>
+        <p>自动清理过旧的每日计划和历史记录，避免本地数据长期无限增长。</p>
+      </div>
+      <label class="siyuan-review-ai-toggle">
+        <span>
+          <strong>启用自动维护</strong>
+          <em>清理前会保留最近一次备份。</em>
+        </span>
+        <input class="b3-switch" type="checkbox" name="dataRetentionEnabled" ${settings.dataRetention.enabled ? "checked" : ""}>
+      </label>
+      <div class="siyuan-review-setting-fields">
+        ${textInput("keepDailyPlansDays", "每日计划保留天数", "超过这个天数的旧计划会被清理。", String(settings.dataRetention.keepDailyPlansDays), "number", "30", "3650")}
+        ${textInput("keepHistoryLimit", "历史记录保留条数", "超过上限后保留最新记录。", String(settings.dataRetention.keepHistoryLimit), "number", "100", "100000")}
+        ${textInput("pruneMissingDocsDays", "失效文档保留天数", "长期不再被计划、历史或候选池引用的文档状态会被清理。", String(settings.dataRetention.pruneMissingDocsDays), "number", "30", "3650")}
+      </div>
+    </section>
   </div>
 
   <footer class="siyuan-review-setting-actions">
@@ -157,6 +176,13 @@ function readSettingsForm(root: HTMLElement, current: ReviewSettings): ReviewSet
       apiKey: readOptionalString(root, "aiApiKey"),
       model: readOptionalString(root, "aiModel"),
       maxChars: readNumber(root, "aiMaxChars", current.ai.maxChars, 1000, 100000),
+    },
+    dataRetention: {
+      ...current.dataRetention,
+      enabled: Boolean(root.querySelector<HTMLInputElement>('input[name="dataRetentionEnabled"]')?.checked),
+      keepDailyPlansDays: readNumber(root, "keepDailyPlansDays", current.dataRetention.keepDailyPlansDays, 30, 3650),
+      keepHistoryLimit: readNumber(root, "keepHistoryLimit", current.dataRetention.keepHistoryLimit, 100, 100000),
+      pruneMissingDocsDays: readNumber(root, "pruneMissingDocsDays", current.dataRetention.pruneMissingDocsDays, 30, 3650),
     },
   };
 }

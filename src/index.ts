@@ -7,6 +7,7 @@ import { canUseAiQuestionGeneration, getReviewQuestions, shouldAutoGenerateQuest
 import { SettingsStore } from "./storage/settings-store";
 import { ReviewStore } from "./storage/review-store";
 import type { PersistAdapter } from "./storage/persist-adapter";
+import { pruneReviewData } from "./storage/data-retention";
 import { toDateKey } from "./utils/date";
 import { createTopbarController, type TopbarController } from "./ui/topbar";
 import { createDockController, type DockController } from "./ui/dock";
@@ -104,6 +105,7 @@ export default class SiyuanReviewPlugin extends Plugin {
             });
 
       store.setDailyPlan(plan);
+      await this.pruneStoredData(settings, candidates.map((candidate) => candidate.docId));
       await store.save();
       this.topbar?.setBadge(getIncompleteCount(plan));
       this.renderCurrentDock();
@@ -288,6 +290,26 @@ export default class SiyuanReviewPlugin extends Plugin {
       selectedDocId: this.selectedDocId,
       generatingQuestionDocIds: Array.from(this.enhancingQuestionDocIds),
       submittingFeedbackDocIds: Array.from(this.submittingFeedbackDocIds),
+    });
+  }
+
+  private async pruneStoredData(settings = DEFAULT_SETTINGS, protectedDocIds: string[] = []): Promise<void> {
+    const store = this.reviewStore;
+    if (!store) {
+      return;
+    }
+
+    const result = pruneReviewData(store.getData(), settings.dataRetention, toDateKey(), protectedDocIds);
+    if (!result.changed) {
+      return;
+    }
+
+    await store.saveBackup();
+    store.replaceData(result.data);
+    console.info("[siyuan-review] pruned review data", {
+      removedDailyPlans: result.removedDailyPlans,
+      removedHistoryEvents: result.removedHistoryEvents,
+      removedDocs: result.removedDocs,
     });
   }
 

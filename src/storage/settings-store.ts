@@ -27,5 +27,9 @@ export function mergeSettings(saved: Partial<ReviewSettings> | undefined): Revie
       ...DEFAULT_SETTINGS.ai,
       ...saved?.ai,
     },
+    dataRetention: {
+      ...DEFAULT_SETTINGS.dataRetention,
+      ...saved?.dataRetention,
+    },
   };
 }

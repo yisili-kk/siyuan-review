@@ -17,10 +17,18 @@ export type AiSettings = {
   maxChars: number;
 };
 
+export type DataRetentionSettings = {
+  enabled: boolean;
+  keepDailyPlansDays: number;
+  keepHistoryLimit: number;
+  pruneMissingDocsDays: number;
+};
+
 export type ReviewSettings = {
   enabledNotebooks: string[];
   dailyLimit: number;
   reviewTag: string;
   intervals: ReviewIntervals;
   ai: AiSettings;
+  dataRetention: DataRetentionSettings;
 };
