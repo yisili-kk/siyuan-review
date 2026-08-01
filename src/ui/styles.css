@@ -595,7 +595,6 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
   gap: 10px;
   padding-bottom: 10px;
 }
@@ -604,15 +603,28 @@
   width: min(220px, 100%);
 }
 
+.siyuan-review-pool-toolbar .siyuan-review-pool-search {
+  flex: 1 1 260px;
+  width: auto;
+}
+
+.siyuan-review-pool-toolbar input,
 .siyuan-review-pool-toolbar select {
   width: 100%;
 }
 
 .siyuan-review-pool-table {
-  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   border: 1px solid var(--b3-border-color);
   border-radius: 8px;
   background: var(--b3-theme-background);
+}
+
+.siyuan-review-pool-table__body {
+  height: clamp(280px, 38vh, 390px);
+  overflow: auto;
 }
 
 .siyuan-review-pool-table table {
@@ -640,11 +652,19 @@
   white-space: nowrap;
 }
 
+.siyuan-review-pool-table th:first-child,
 .siyuan-review-pool-table td:first-child {
+  width: 52px;
+  min-width: 52px;
+  color: var(--b3-theme-on-surface);
+  text-align: center;
+}
+
+.siyuan-review-pool-table td:nth-child(2) {
   min-width: 260px;
 }
 
-.siyuan-review-pool-table td strong {
+.siyuan-review-pool-table td:nth-child(2) strong {
   display: block;
   overflow: hidden;
   max-width: 360px;

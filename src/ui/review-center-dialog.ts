@@ -1,4 +1,4 @@
-import { Dialog } from "siyuan";
+import { Dialog, showMessage } from "siyuan";
 import { isDue } from "../utils/date";
 import type { DailyPlan, ReviewCandidate, ReviewDocState } from "../types/review";
 
@@ -25,7 +25,7 @@ export function openReviewCenterDialog(input: {
   }
 
   bindPoolFilters(root);
-  bindPoolActions(root, input);
+  bindPoolActions(root, input, dialog);
   bindPagination(root);
   bindDialogActions(root, input, dialog);
 }
@@ -49,6 +49,9 @@ function buildReviewCenterHtml(input: {
   <div class="siyuan-review-center__body">
     <section class="siyuan-review-center-panel">
       <div class="siyuan-review-pool-toolbar">
+        <label class="siyuan-review-pool-search">
+          <input class="b3-text-field" type="search" data-action="pool-search" placeholder="搜索文档标题">
+        </label>
         <label>
           <select class="b3-select" data-action="pool-filter">
             <option value="all">全部</option>
@@ -62,7 +65,10 @@ function buildReviewCenterHtml(input: {
         </label>
       </div>
       <div class="siyuan-review-pool-table">
-        ${renderPoolTable(input.docs, input.todayPlan, input.date)}
+        <div class="siyuan-review-pool-table__body">
+          ${renderPoolTable(input.docs, input.todayPlan, input.date)}
+          <p class="siyuan-review-empty" data-role="pool-filter-empty" hidden>当前筛选下没有文档。</p>
+        </div>
         <div class="siyuan-review-pool-pagination" data-role="pool-pagination" ${input.docs.length === 0 ? "hidden" : ""}>
           <span data-role="page-info">第 1 / 1 页</span>
           <div>
@@ -71,7 +77,6 @@ function buildReviewCenterHtml(input: {
           </div>
         </div>
       </div>
-      <p class="siyuan-review-empty" data-role="pool-filter-empty" hidden>当前筛选下没有文档。</p>
     </section>
   </div>
 
@@ -94,7 +99,8 @@ function renderPoolTable(docs: ReviewCandidate[], todayPlan: DailyPlan | undefin
       const categories = getPoolCategories(doc, todayDocIds, date);
       const status = getPoolStatus(doc, todayDocIds, date);
       return `
-<tr data-categories="${categories.join(" ")}" data-doc-row>
+<tr data-categories="${categories.join(" ")}" data-title="${escapeHtml(doc.title.toLocaleLowerCase())}" data-doc-row>
+  <td data-role="row-index"></td>
   <td>
     <strong>${escapeHtml(doc.title)}</strong>
   </td>
@@ -116,6 +122,7 @@ function renderPoolTable(docs: ReviewCandidate[], todayPlan: DailyPlan | undefin
 <table>
   <thead>
     <tr>
+      <th>序号</th>
       <th>文档</th>
       <th>状态</th>
       <th>上次回顾</th>
@@ -133,6 +140,10 @@ function bindPoolFilters(root: HTMLElement): void {
     root.dataset.page = "1";
     updatePagination(root);
   });
+  root.querySelector<HTMLInputElement>('[data-action="pool-search"]')?.addEventListener("input", () => {
+    root.dataset.page = "1";
+    updatePagination(root);
+  });
 }
 
 function bindPoolActions(
@@ -141,6 +152,7 @@ function bindPoolActions(
     onOpenDoc(docId: string): Promise<void>;
     onOpenCloze(docId: string): Promise<void>;
   },
+  dialog: Dialog,
 ): void {
   root.querySelectorAll<HTMLButtonElement>("[data-doc-id]").forEach((button) => {
     button.addEventListener("click", () => {
@@ -151,10 +163,16 @@ function bindPoolActions(
 
       button.disabled = true;
       button.textContent = "打开中...";
-      void input.onOpenDoc(docId).finally(() => {
-        button.disabled = false;
-        button.textContent = "打开";
-      });
+      void input
+        .onOpenDoc(docId)
+        .then(() => {
+          dialog.destroy();
+        })
+        .catch(() => {
+          button.disabled = false;
+          button.textContent = "打开";
+          showMessage("打开文档失败。", 3000, "error");
+        });
     });
   });
 
@@ -206,9 +224,12 @@ function bindDialogActions(
 
 function updatePagination(root: HTMLElement): void {
   const filter = root.querySelector<HTMLSelectElement>('[data-action="pool-filter"]')?.value ?? "all";
+  const keyword = normalizeSearchKeyword(root.querySelector<HTMLInputElement>('[data-action="pool-search"]')?.value ?? "");
   const matchedRows = Array.from(root.querySelectorAll<HTMLTableRowElement>("[data-doc-row]")).filter((row) => {
     const categories = row.dataset.categories?.split(/\s+/) ?? [];
-    return filter === "all" || categories.includes(filter);
+    const matchesCategory = filter === "all" || categories.includes(filter);
+    const matchesKeyword = !keyword || (row.dataset.title ?? "").includes(keyword);
+    return matchesCategory && matchesKeyword;
   });
   const totalPages = Math.max(Math.ceil(matchedRows.length / PAGE_SIZE), 1);
   const currentPage = Math.min(readCurrentPage(root), totalPages);
@@ -221,6 +242,10 @@ function updatePagination(root: HTMLElement): void {
   });
   matchedRows.forEach((row, index) => {
     row.hidden = index < start || index >= end;
+    const rowIndex = row.querySelector<HTMLElement>('[data-role="row-index"]');
+    if (rowIndex) {
+      rowIndex.textContent = String(index + 1);
+    }
   });
 
   const pagination = root.querySelector<HTMLElement>('[data-role="pool-pagination"]');
@@ -243,6 +268,10 @@ function updatePagination(root: HTMLElement): void {
   if (nextButton) {
     nextButton.disabled = currentPage >= totalPages;
   }
+}
+
+function normalizeSearchKeyword(value: string): string {
+  return value.trim().toLocaleLowerCase();
 }
 
 function readCurrentPage(root: HTMLElement): number {
