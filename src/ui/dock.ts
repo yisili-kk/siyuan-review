@@ -13,7 +13,6 @@ const DOCK_BUTTON_CLASS = "siyuan-review-dock-button";
 const LEGACY_DOCK_ICONS = new Set(["#iconRefresh"]);
 let dockButtonPendingCount = 0;
 let dockButtonUpdateId = 0;
-let dockButtonObserver: MutationObserver | undefined;
 let dockRegistered = false;
 let dockRoot: HTMLElement | undefined;
 
@@ -91,7 +90,6 @@ export function createDockController(plugin: Plugin, actions: DockActions): Dock
       dockRegistered = false;
       dockRoot = undefined;
       updateDockButtonPendingState(0);
-      disconnectDockButtonObserver();
       root = undefined;
     },
   };
@@ -185,8 +183,7 @@ function getPendingReviewCount(snapshot: DockSnapshot): number {
 function updateDockButtonPendingState(pendingCount: number): void {
   dockButtonPendingCount = pendingCount;
   const updateId = ++dockButtonUpdateId;
-  ensureDockButtonObserver();
-  [0, 100, 500, 1200].forEach((delay) => {
+  [0, 16, 50, 150, 500, 1200].forEach((delay) => {
     window.setTimeout(() => {
       if (updateId === dockButtonUpdateId) {
         applyDockButtonPendingState(dockButtonPendingCount);
@@ -302,27 +299,6 @@ function isReviewDockButton(button: HTMLElement): boolean {
 
 function getIconHref(icon: SVGUseElement): string {
   return icon.getAttribute("href") ?? icon.getAttribute("xlink:href") ?? "";
-}
-
-function ensureDockButtonObserver(): void {
-  if (dockButtonObserver) {
-    return;
-  }
-
-  dockButtonObserver = new MutationObserver(() => {
-    applyDockButtonPendingState(dockButtonPendingCount);
-  });
-  dockButtonObserver.observe(document.body, {
-    attributes: true,
-    attributeFilter: ["class"],
-    childList: true,
-    subtree: true,
-  });
-}
-
-function disconnectDockButtonObserver(): void {
-  dockButtonObserver?.disconnect();
-  dockButtonObserver = undefined;
 }
 
 function bindEvents(root: HTMLElement, snapshot: DockSnapshot, actions: DockActions): void {
