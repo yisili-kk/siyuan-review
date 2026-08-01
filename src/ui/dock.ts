@@ -12,15 +12,18 @@ export type DockSnapshot = {
   selectedDocId?: string;
   generatingQuestionDocIds?: string[];
   submittingFeedbackDocIds?: string[];
+  openingClozeDocIds?: string[];
 };
 
 export type DockActions = {
   onRefresh(): Promise<void>;
   onRegenerate(): Promise<void>;
   onRegenerateQuestions(docId: string): Promise<void>;
+  onOpenCloze(docId: string): Promise<void>;
   onSelectDoc(docId: string): Promise<void>;
   onFeedback(docId: string, feedback: ReviewFeedback): Promise<void>;
   onOpenSettings(): void;
+  onBack(): void;
 };
 
 export type DockController = {
@@ -88,6 +91,9 @@ function buildDockHtml(snapshot: DockSnapshot): string {
   const isSubmittingFeedback = selectedDoc
     ? (snapshot.submittingFeedbackDocIds ?? []).includes(selectedDoc.docId)
     : false;
+  const isOpeningCloze = selectedDoc
+    ? (snapshot.openingClozeDocIds ?? []).includes(selectedDoc.docId)
+    : false;
 
   if (!plan) {
     return `
@@ -115,6 +121,9 @@ function buildDockHtml(snapshot: DockSnapshot): string {
     <span class="siyuan-review-progress">${completed} / ${total}</span>
   </header>
   ${renderReviewDetail(selectedDoc)}
+  <div class="siyuan-review-detail-actions">
+    <button class="b3-button b3-button--outline" data-action="open-cloze" ${isOpeningCloze ? 'disabled aria-busy="true"' : ""}>${isOpeningCloze ? "打开中..." : "检验"}</button>
+  </div>
   <section class="siyuan-review-section">
     <h3>回顾问题</h3>
     ${renderQuestionPanel(selectedDoc.questionCache?.questions ?? getTemplateQuestions())}
@@ -189,18 +198,23 @@ function bindEvents(root: HTMLElement, snapshot: DockSnapshot, actions: DockActi
     }
   });
 
+  root.querySelector<HTMLButtonElement>('[data-action="open-cloze"]')?.addEventListener("click", (event) => {
+    const button = event.currentTarget as HTMLButtonElement | null;
+    if (snapshot.selectedDocId && button && !button.disabled) {
+      button.disabled = true;
+      button.setAttribute("aria-busy", "true");
+      button.textContent = "打开中...";
+      void actions.onOpenCloze(snapshot.selectedDocId);
+    }
+  });
+
   root.querySelector<HTMLButtonElement>('[data-action="settings"]')?.addEventListener("click", () => {
     actions.onOpenSettings();
   });
 
   root.querySelector<HTMLButtonElement>('[data-action="back"]')?.addEventListener("click", () => {
-    renderLocal(root, { ...snapshot, selectedDocId: undefined }, actions);
+    actions.onBack();
   });
-}
-
-function renderLocal(root: HTMLElement, snapshot: DockSnapshot, actions: DockActions): void {
-  root.innerHTML = buildDockHtml(snapshot);
-  bindEvents(root, snapshot, actions);
 }
 
 function renderQuestionActions(isGeneratingQuestions: boolean): string {

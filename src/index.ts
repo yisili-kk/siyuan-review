@@ -2,7 +2,7 @@ import { Plugin, showMessage } from "siyuan";
 import { DEFAULT_SETTINGS } from "./constants";
 import { buildDailyPlan, getIncompleteCount, syncDailyPlanAvailability } from "./core/scheduler";
 import { scanReviewCandidates, mergeCandidatesWithStoredState } from "./core/document-indexer";
-import { completeReview, startReview } from "./core/review-service";
+import { completeReview, recordClozeCheck, startReview } from "./core/review-service";
 import { canUseAiQuestionGeneration, getReviewQuestions, shouldAutoGenerateQuestions } from "./core/question-service";
 import { SettingsStore } from "./storage/settings-store";
 import { ReviewStore } from "./storage/review-store";
@@ -12,8 +12,10 @@ import { toDateKey } from "./utils/date";
 import { createTopbarController, type TopbarController } from "./ui/topbar";
 import { createDockController, type DockController } from "./ui/dock";
 import { getDocumentMarkdown, openDocument } from "./siyuan/document";
+import { openClozeDialog } from "./ui/cloze-dialog";
+import { openReviewCenterDialog } from "./ui/review-center-dialog";
 import { openSettingsDialog } from "./ui/settings-dialog";
-import type { ReviewFeedback } from "./types/review";
+import type { ReviewCandidate, ReviewFeedback, ReviewDocState } from "./types/review";
 import { listNotebooks } from "./siyuan/notebook";
 import { generateAiQuestions } from "./ai/question-generator";
 import "./ui/styles.css";
@@ -26,6 +28,7 @@ export default class SiyuanReviewPlugin extends Plugin {
   private selectedDocId?: string;
   private enhancingQuestionDocIds = new Set<string>();
   private submittingFeedbackDocIds = new Set<string>();
+  private openingClozeDocIds = new Set<string>();
 
   async onload(): Promise<void> {
     console.info("[siyuan-review] plugin loading");
@@ -34,18 +37,23 @@ export default class SiyuanReviewPlugin extends Plugin {
     this.reviewStore = new ReviewStore(adapter);
 
     this.topbar = createTopbarController(this, () => {
-      void this.openSettings();
+      void this.openReviewCenter();
     });
 
     this.dock = createDockController(this, {
       onRefresh: async () => {
+        this.selectedDocId = undefined;
         await this.refreshTodayPlan();
       },
       onRegenerate: async () => {
+        this.selectedDocId = undefined;
         await this.regenerateTodayPlan();
       },
       onRegenerateQuestions: async (docId) => {
         await this.enhanceQuestions(docId);
+      },
+      onOpenCloze: async (docId) => {
+        await this.openCloze(docId);
       },
       onSelectDoc: async (docId) => {
         await this.selectDoc(docId);
@@ -55,6 +63,10 @@ export default class SiyuanReviewPlugin extends Plugin {
       },
       onOpenSettings: () => {
         void this.openSettings();
+      },
+      onBack: () => {
+        this.selectedDocId = undefined;
+        this.renderCurrentDock();
       },
     });
     this.dock.register();
@@ -209,6 +221,37 @@ export default class SiyuanReviewPlugin extends Plugin {
     }
   }
 
+  private async openReviewCenter(): Promise<void> {
+    const settingsStore = this.settingsStore;
+    const store = this.reviewStore;
+    if (!settingsStore || !store) {
+      return;
+    }
+
+    try {
+      const settings = await settingsStore.load();
+      const candidates = await this.getReviewCenterCandidates(settings);
+      const data = store.getData();
+      openReviewCenterDialog({
+        date: toDateKey(),
+        docs: buildReviewCenterDocs(candidates, data.docs),
+        todayPlan: data.dailyPlans[toDateKey()],
+        onOpenDoc: async (docId) => {
+          await openDocument(this.app, docId);
+        },
+        onOpenCloze: async (docId) => {
+          await this.openCloze(docId);
+        },
+        onOpenSettings: () => {
+          void this.openSettings();
+        },
+      });
+    } catch (error) {
+      console.error("[siyuan-review] failed to open review center", error);
+      showMessage("打开文档回顾中心失败。", 3000, "error");
+    }
+  }
+
   private async openSettings(): Promise<void> {
     const settingsStore = this.settingsStore;
     if (!settingsStore) {
@@ -229,6 +272,30 @@ export default class SiyuanReviewPlugin extends Plugin {
     } catch (error) {
       console.error("[siyuan-review] failed to open settings", error);
       showMessage("打开设置失败。", 3000, "error");
+    }
+  }
+
+  private async getReviewCenterCandidates(settings = DEFAULT_SETTINGS): Promise<ReviewCandidate[]> {
+    const store = this.reviewStore;
+    if (!store) {
+      return [];
+    }
+
+    const data = store.getData();
+    const date = toDateKey();
+    try {
+      const candidates = mergeCandidatesWithStoredState(await scanReviewCandidates(settings), data.docs);
+      store.upsertDocs(candidates);
+      store.upsertDocs(markMissingDocs(data.docs, candidates.map((candidate) => candidate.docId), date));
+      await store.save();
+      return candidates;
+    } catch (error) {
+      console.warn("[siyuan-review] failed to scan review pool, using stored data", error);
+      showMessage("回顾池扫描失败，已展示本地已有数据。", 3000, "error");
+      return Object.values(data.docs).map((doc) => ({
+        ...doc,
+        exists: !doc.missingSince,
+      }));
     }
   }
 
@@ -280,6 +347,59 @@ export default class SiyuanReviewPlugin extends Plugin {
     }
   }
 
+  private async openCloze(docId: string): Promise<void> {
+    if (this.openingClozeDocIds.has(docId)) {
+      showMessage("检验界面正在打开中，请稍候。", 2000);
+      return;
+    }
+
+    const store = this.reviewStore;
+    if (!store) {
+      return;
+    }
+
+    const doc = store.getData().docs[docId];
+    if (!doc) {
+      showMessage("无法打开检验，文档状态不存在。", 3000, "error");
+      return;
+    }
+
+    this.openingClozeDocIds.add(docId);
+    this.renderCurrentDock();
+
+    try {
+      openClozeDialog({
+        docTitle: doc.title,
+        markdown: await getDocumentMarkdown(docId),
+        onFinish: async () => {
+          await this.saveClozeCheck(docId);
+        },
+      });
+    } catch (error) {
+      console.error("[siyuan-review] failed to open cloze check", error);
+      showMessage("打开检验失败。", 3000, "error");
+    } finally {
+      this.openingClozeDocIds.delete(docId);
+      this.renderCurrentDock();
+    }
+  }
+
+  private async saveClozeCheck(docId: string): Promise<void> {
+    const store = this.reviewStore;
+    if (!store) {
+      return;
+    }
+
+    const doc = store.getData().docs[docId];
+    if (!doc) {
+      throw new Error(`Document ${docId} does not exist.`);
+    }
+
+    store.upsertDocs([recordClozeCheck(doc)]);
+    await store.save();
+    this.renderCurrentDock();
+  }
+
   private renderCurrentDock(): void {
     const store = this.reviewStore;
     if (!store) {
@@ -293,6 +413,7 @@ export default class SiyuanReviewPlugin extends Plugin {
       selectedDocId: this.selectedDocId,
       generatingQuestionDocIds: Array.from(this.enhancingQuestionDocIds),
       submittingFeedbackDocIds: Array.from(this.submittingFeedbackDocIds),
+      openingClozeDocIds: Array.from(this.openingClozeDocIds),
     });
   }
 
@@ -342,4 +463,19 @@ function createPluginPersistAdapter(plugin: Plugin): PersistAdapter {
       await plugin.saveData(name, data);
     },
   };
+}
+
+function buildReviewCenterDocs(
+  candidates: ReviewCandidate[],
+  storedDocs: Record<string, ReviewDocState>,
+): ReviewCandidate[] {
+  const candidateIds = new Set(candidates.map((candidate) => candidate.docId));
+  const missingStoredDocs = Object.values(storedDocs)
+    .filter((doc) => !candidateIds.has(doc.docId))
+    .map<ReviewCandidate>((doc) => ({
+      ...doc,
+      exists: false,
+    }));
+
+  return [...candidates, ...missingStoredDocs];
 }

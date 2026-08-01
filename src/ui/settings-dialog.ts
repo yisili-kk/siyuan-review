@@ -10,7 +10,7 @@ export function openSettingsDialog(input: {
   const dialog = new Dialog({
     title: "文档回顾设置",
     width: "960px",
-    content: buildSettingsHtml(input.settings, input.notebooks),
+    content: buildSettingsDialogHtml(input.settings, input.notebooks),
   });
   dialog.element.classList.add("siyuan-review-settings-dialog");
 
@@ -56,7 +56,21 @@ export function openSettingsDialog(input: {
   });
 }
 
-function buildSettingsHtml(settings: ReviewSettings, notebooks: NotebookInfo[]): string {
+function buildSettingsDialogHtml(settings: ReviewSettings, notebooks: NotebookInfo[]): string {
+  return `
+<div class="siyuan-review-settings">
+  <div class="siyuan-review-settings__body">
+    ${renderSettingsSections(settings, notebooks)}
+  </div>
+
+  <footer class="siyuan-review-setting-actions">
+    <button class="b3-button b3-button--outline" data-action="cancel">取消</button>
+    <button class="b3-button" data-action="save">保存</button>
+  </footer>
+</div>`;
+}
+
+function renderSettingsSections(settings: ReviewSettings, notebooks: NotebookInfo[]): string {
   const notebookItems = notebooks
     .filter((notebook) => !notebook.closed)
     .map((notebook) => {
@@ -70,8 +84,6 @@ function buildSettingsHtml(settings: ReviewSettings, notebooks: NotebookInfo[]):
     .join("");
 
   return `
-<div class="siyuan-review-settings">
-  <div class="siyuan-review-settings__body">
     <section class="siyuan-review-setting-section">
       <div class="siyuan-review-setting-section__head">
         <h3>启用笔记本</h3>
@@ -143,13 +155,7 @@ function buildSettingsHtml(settings: ReviewSettings, notebooks: NotebookInfo[]):
         ${textInput("pruneMissingDocsDays", "失效文档保留天数", "长期不再被计划、历史或候选池引用的文档状态会被清理。", String(settings.dataRetention.pruneMissingDocsDays), "number", "30", "3650")}
       </div>
     </section>
-  </div>
-
-  <footer class="siyuan-review-setting-actions">
-    <button class="b3-button b3-button--outline" data-action="cancel">取消</button>
-    <button class="b3-button" data-action="save">保存</button>
-  </footer>
-</div>`;
+`;
 }
 
 function readSettingsForm(root: HTMLElement, current: ReviewSettings): ReviewSettings {

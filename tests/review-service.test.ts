@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { completeReview, startReview } from "../src/core/review-service";
+import { completeReview, recordClozeCheck, startReview } from "../src/core/review-service";
 import type { DailyPlan, ReviewDocState } from "../src/types/review";
 import type { ReviewIntervals } from "../src/types/settings";
 
@@ -65,5 +65,21 @@ describe("review-service", () => {
         completedAt: "2026-07-26T08:05:30.000Z",
       }),
     ).toThrow(/cannot be completed/);
+  });
+
+  it("increments cloze check count without changing review scheduling", () => {
+    const doc: ReviewDocState = {
+      docId: "doc-a",
+      notebookId: "notebook",
+      title: "Doc A",
+      path: "/Doc A",
+      nextReviewAt: "2026-08-02",
+      clozeCheckCount: 2,
+    };
+
+    const result = recordClozeCheck(doc);
+
+    expect(result.clozeCheckCount).toBe(3);
+    expect(result.nextReviewAt).toBe("2026-08-02");
   });
 });

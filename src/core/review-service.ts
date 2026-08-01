@@ -73,6 +73,13 @@ export function completeReview(input: {
   return { doc, plan: input.plan, event };
 }
 
+export function recordClozeCheck(doc: ReviewDocState): ReviewDocState {
+  return {
+    ...doc,
+    clozeCheckCount: (doc.clozeCheckCount ?? 0) + 1,
+  };
+}
+
 function nextStatus(feedback: ReviewFeedback, current: ReviewDocState["status"]): ReviewDocState["status"] {
   if (feedback === "needsSupplement") {
     return "needsSupplement";
