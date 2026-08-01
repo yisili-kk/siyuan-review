@@ -4,7 +4,6 @@
 
 .siyuan-review-dock-button--pending {
   position: relative;
-  color: var(--b3-theme-error, #d23f31) !important;
 }
 
 .siyuan-review-dock-button--pending::after {
@@ -29,15 +28,6 @@
   line-height: 1;
   pointer-events: none;
   transform: translate(32%, -32%);
-}
-
-.siyuan-review-dock-button--pending svg {
-  fill: currentColor !important;
-  stroke: currentColor !important;
-}
-
-.siyuan-review-dock-button--pending:is(.dock__item--active, .dock__item--activefocus) {
-  color: var(--b3-theme-background, #fff) !important;
 }
 
 .siyuan-review-dock {

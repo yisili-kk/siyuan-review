@@ -30,9 +30,12 @@ export default class SiyuanReviewPlugin extends Plugin {
   private enhancingQuestionDocIds = new Set<string>();
   private submittingFeedbackDocIds = new Set<string>();
   private openingClozeDocIds = new Set<string>();
+  private startupRefreshTimer?: ReturnType<typeof globalThis.setTimeout>;
+  private unloaded = false;
 
   async onload(): Promise<void> {
     console.info("[siyuan-review] plugin loading");
+    this.unloaded = false;
     this.addIcons(REVIEW_ICONS);
     const adapter = createPluginPersistAdapter(this);
     this.settingsStore = new SettingsStore(adapter);
@@ -73,16 +76,47 @@ export default class SiyuanReviewPlugin extends Plugin {
     });
     this.dock.register();
 
-    const settings = await this.settingsStore.load();
-    await this.settingsStore.save(settings);
-    await this.reviewStore.load();
-    await this.refreshTodayPlan();
+    try {
+      const settings = await this.settingsStore.load();
+      await this.settingsStore.save(settings);
+    } catch (error) {
+      console.warn("[siyuan-review] failed to load settings, using defaults for this session", error);
+      showMessage("文档回顾设置读取失败，本次将使用默认设置。", 3000, "error");
+    }
+
+    try {
+      await this.reviewStore.load();
+    } catch (error) {
+      console.warn("[siyuan-review] failed to load review data, using empty state for this session", error);
+      showMessage("文档回顾数据读取失败，本次将使用空状态。", 3000, "error");
+    }
+
+    this.renderCurrentDock();
+    this.scheduleStartupRefresh();
     console.info("[siyuan-review] plugin loaded");
   }
 
   onunload(): void {
+    this.unloaded = true;
+    if (this.startupRefreshTimer) {
+      globalThis.clearTimeout(this.startupRefreshTimer);
+      this.startupRefreshTimer = undefined;
+    }
     this.topbar?.dispose();
     this.dock?.dispose();
+  }
+
+  private scheduleStartupRefresh(): void {
+    if (this.startupRefreshTimer) {
+      globalThis.clearTimeout(this.startupRefreshTimer);
+    }
+
+    this.startupRefreshTimer = globalThis.setTimeout(() => {
+      this.startupRefreshTimer = undefined;
+      if (!this.unloaded) {
+        void this.refreshTodayPlan();
+      }
+    }, 300);
   }
 
   private async refreshTodayPlan(): Promise<boolean> {
@@ -94,7 +128,10 @@ export default class SiyuanReviewPlugin extends Plugin {
   }
 
   private async createOrRefreshTodayPlan(forceRegenerate: boolean): Promise<boolean> {
-    const settings = (await this.settingsStore?.load()) ?? DEFAULT_SETTINGS;
+    if (this.unloaded) {
+      return false;
+    }
+
     const store = this.reviewStore;
     if (!store) {
       return false;
@@ -104,7 +141,12 @@ export default class SiyuanReviewPlugin extends Plugin {
     const date = toDateKey();
 
     try {
+      const settings = (await this.settingsStore?.load()) ?? DEFAULT_SETTINGS;
       const candidates = mergeCandidatesWithStoredState(await scanReviewCandidates(settings), data.docs);
+      if (this.unloaded) {
+        return false;
+      }
+
       store.upsertDocs(candidates);
       store.upsertDocs(markMissingDocs(data.docs, candidates.map((candidate) => candidate.docId), date));
 
@@ -122,6 +164,10 @@ export default class SiyuanReviewPlugin extends Plugin {
       store.setDailyPlan(plan);
       await this.pruneStoredData(settings, candidates.map((candidate) => candidate.docId));
       await store.save();
+      if (this.unloaded) {
+        return false;
+      }
+
       this.topbar?.setBadge(getIncompleteCount(plan));
       this.renderCurrentDock();
       await this.notifyTodayPlanOnce(date, plan.items.length);
@@ -403,6 +449,10 @@ export default class SiyuanReviewPlugin extends Plugin {
   }
 
   private renderCurrentDock(): void {
+    if (this.unloaded) {
+      return;
+    }
+
     const store = this.reviewStore;
     if (!store) {
       return;
@@ -441,7 +491,7 @@ export default class SiyuanReviewPlugin extends Plugin {
 
   private async notifyTodayPlanOnce(date: string, total: number): Promise<void> {
     const store = this.reviewStore;
-    if (!store || total === 0) {
+    if (!store || total === 0 || this.unloaded) {
       return;
     }
 
@@ -452,6 +502,9 @@ export default class SiyuanReviewPlugin extends Plugin {
 
     data.lastNotifiedDate = date;
     await store.save();
+    if (this.unloaded) {
+      return;
+    }
     showMessage(`今天有 ${total} 篇文档待回顾。`, 3000);
   }
 }

@@ -203,30 +203,18 @@ function applyDockButtonPendingState(pendingCount: number): void {
     normalizeDockButtonIcon(button);
     button.classList.add(DOCK_BUTTON_CLASS);
     button.classList.toggle("siyuan-review-dock-button--pending", hasPending);
-    const pendingColor = isDockButtonActive(button) ? "var(--b3-theme-background, #fff)" : "var(--b3-theme-error, #d23f31)";
     if (hasPending) {
       button.dataset.reviewCount = String(pendingCount);
-      button.style.setProperty("color", pendingColor, "important");
     } else {
       delete button.dataset.reviewCount;
-      button.style.removeProperty("color");
     }
     button.querySelectorAll<SVGElement>("svg, use").forEach((icon) => {
-      if (hasPending) {
-        icon.style.setProperty("color", pendingColor, "important");
-        icon.style.setProperty("fill", "currentColor", "important");
-        icon.style.setProperty("stroke", "currentColor", "important");
-      } else {
-        icon.style.removeProperty("color");
-        icon.style.removeProperty("fill");
-        icon.style.removeProperty("stroke");
-      }
+      icon.style.removeProperty("color");
+      icon.style.removeProperty("fill");
+      icon.style.removeProperty("stroke");
     });
+    button.style.removeProperty("color");
   });
-}
-
-function isDockButtonActive(button: HTMLElement): boolean {
-  return button.classList.contains("dock__item--active") || button.classList.contains("dock__item--activefocus");
 }
 
 function findDockButtons(): HTMLElement[] {
