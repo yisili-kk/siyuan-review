@@ -52,7 +52,7 @@ function buildReviewCenterHtml(input: {
         <label class="siyuan-review-pool-search">
           <input class="b3-text-field" type="search" data-action="pool-search" placeholder="搜索文档标题">
         </label>
-        <label>
+        <label class="siyuan-review-pool-filter">
           <select class="b3-select" data-action="pool-filter">
             <option value="all">全部</option>
             <option value="today">今日待回顾</option>
@@ -67,7 +67,7 @@ function buildReviewCenterHtml(input: {
       <div class="siyuan-review-pool-table">
         <div class="siyuan-review-pool-table__body">
           ${renderPoolTable(input.docs, input.todayPlan, input.date)}
-          <p class="siyuan-review-empty" data-role="pool-filter-empty" hidden>当前筛选下没有文档。</p>
+          ${input.docs.length > 0 ? '<p class="siyuan-review-empty" data-role="pool-filter-empty" hidden>当前筛选下没有文档。</p>' : ""}
         </div>
         <div class="siyuan-review-pool-pagination" data-role="pool-pagination" ${input.docs.length === 0 ? "hidden" : ""}>
           <span data-role="page-info">第 1 / 1 页</span>

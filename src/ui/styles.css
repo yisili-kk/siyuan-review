@@ -592,25 +592,49 @@
 }
 
 .siyuan-review-pool-toolbar {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 220px;
   align-items: center;
-  gap: 10px;
+  column-gap: 16px;
+  row-gap: 10px;
   padding-bottom: 10px;
 }
 
 .siyuan-review-pool-toolbar label {
-  width: min(220px, 100%);
+  display: block;
+  min-width: 0;
+  width: auto;
 }
 
 .siyuan-review-pool-toolbar .siyuan-review-pool-search {
-  flex: 1 1 260px;
+  grid-column: 1;
   width: auto;
+}
+
+.siyuan-review-pool-toolbar .siyuan-review-pool-filter {
+  grid-column: 2;
+  width: 220px;
 }
 
 .siyuan-review-pool-toolbar input,
 .siyuan-review-pool-toolbar select {
+  box-sizing: border-box;
+  display: block;
+  max-width: 100%;
+  min-width: 0;
   width: 100%;
+}
+
+@media (max-width: 640px) {
+  .siyuan-review-pool-toolbar {
+    grid-template-columns: 1fr;
+  }
+
+  .siyuan-review-pool-toolbar .siyuan-review-pool-search,
+  .siyuan-review-pool-toolbar .siyuan-review-pool-filter {
+    grid-column: 1;
+    width: auto;
+  }
 }
 
 .siyuan-review-pool-table {
