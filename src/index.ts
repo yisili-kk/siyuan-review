@@ -15,6 +15,7 @@ import { getDocumentMarkdown, openDocument } from "./siyuan/document";
 import { openClozeDialog } from "./ui/cloze-dialog";
 import { openReviewCenterDialog } from "./ui/review-center-dialog";
 import { openSettingsDialog } from "./ui/settings-dialog";
+import { REVIEW_ICONS } from "./ui/icons";
 import type { ReviewCandidate, ReviewFeedback, ReviewDocState } from "./types/review";
 import { listNotebooks } from "./siyuan/notebook";
 import { generateAiQuestions } from "./ai/question-generator";
@@ -32,6 +33,7 @@ export default class SiyuanReviewPlugin extends Plugin {
 
   async onload(): Promise<void> {
     console.info("[siyuan-review] plugin loading");
+    this.addIcons(REVIEW_ICONS);
     const adapter = createPluginPersistAdapter(this);
     this.settingsStore = new SettingsStore(adapter);
     this.reviewStore = new ReviewStore(adapter);

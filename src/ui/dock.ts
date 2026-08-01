@@ -6,6 +6,13 @@ import { renderQuestionPanel } from "./components/question-panel";
 import { renderReviewDetail } from "./components/review-detail";
 import { renderTodayList } from "./components/today-list";
 
+const DOCK_TYPE = "siyuan-review-dock";
+const DOCK_ICON = "#iconSiyuanReviewDue";
+const LEGACY_DOCK_ICONS = new Set(["#iconRefresh"]);
+let dockButtonPendingCount = 0;
+let dockButtonUpdateId = 0;
+let dockButtonObserver: MutationObserver | undefined;
+
 export type DockSnapshot = {
   plan?: DailyPlan;
   docs: Record<string, ReviewDocState>;
@@ -38,6 +45,7 @@ export function createDockController(plugin: Plugin, actions: DockActions): Dock
 
   function render(nextSnapshot: DockSnapshot = snapshot): void {
     snapshot = nextSnapshot;
+    updateDockButtonPendingState(getPendingReviewCount(snapshot));
     if (!root) {
       return;
     }
@@ -49,11 +57,11 @@ export function createDockController(plugin: Plugin, actions: DockActions): Dock
   return {
     register() {
       plugin.addDock({
-        type: "siyuan-review-dock",
+        type: DOCK_TYPE,
         config: {
           position: "RightBottom",
           size: { width: 420, height: 0 },
-          icon: "iconRefresh",
+          icon: "iconSiyuanReviewDue",
           title: "文档回顾",
         },
         data: {},
@@ -69,9 +77,12 @@ export function createDockController(plugin: Plugin, actions: DockActions): Dock
           root = undefined;
         },
       });
+      updateDockButtonPendingState(getPendingReviewCount(snapshot));
     },
     render,
     dispose() {
+      updateDockButtonPendingState(0);
+      disconnectDockButtonObserver();
       root = undefined;
     },
   };
@@ -81,7 +92,7 @@ function buildDockHtml(snapshot: DockSnapshot): string {
   const plan = snapshot.plan;
   const completed = plan?.items.filter((item) => item.status === "done" || item.status === "skipped").length ?? 0;
   const total = plan?.items.length ?? 0;
-  const pending = plan?.items.filter((item) => item.status === "pending" || item.status === "reviewing").length ?? 0;
+  const pending = getPendingReviewCount(snapshot);
   const selectedDoc = snapshot.selectedDocId ? snapshot.docs[snapshot.selectedDocId] : undefined;
   const selectedItem = selectedDoc ? plan?.items.find((item) => item.docId === selectedDoc.docId) : undefined;
   const terminalStatus = isTerminalItemStatus(selectedItem?.status) ? selectedItem.status : undefined;
@@ -156,6 +167,137 @@ function buildDockHtml(snapshot: DockSnapshot): string {
   </div>
   <div class="siyuan-review-list">${renderTodayList(plan, snapshot.docs)}</div>
 </div>`;
+}
+
+function getPendingReviewCount(snapshot: DockSnapshot): number {
+  return snapshot.plan?.items.filter((item) => item.status === "pending" || item.status === "reviewing").length ?? 0;
+}
+
+function updateDockButtonPendingState(pendingCount: number): void {
+  dockButtonPendingCount = pendingCount;
+  const updateId = ++dockButtonUpdateId;
+  ensureDockButtonObserver();
+  [0, 100, 500, 1200].forEach((delay) => {
+    window.setTimeout(() => {
+      if (updateId === dockButtonUpdateId) {
+        applyDockButtonPendingState(dockButtonPendingCount);
+      }
+    }, delay);
+  });
+  window.requestAnimationFrame(() => {
+    if (updateId === dockButtonUpdateId) {
+      applyDockButtonPendingState(dockButtonPendingCount);
+    }
+  });
+}
+
+function applyDockButtonPendingState(pendingCount: number): void {
+  const hasPending = pendingCount > 0;
+  findDockButtons().forEach((button) => {
+    normalizeDockButtonIcon(button);
+    button.classList.toggle("siyuan-review-dock-button--pending", hasPending);
+    const pendingColor = isDockButtonActive(button) ? "var(--b3-theme-background, #fff)" : "var(--b3-theme-error, #d23f31)";
+    if (hasPending) {
+      button.dataset.reviewCount = String(pendingCount);
+      button.style.setProperty("color", pendingColor, "important");
+    } else {
+      delete button.dataset.reviewCount;
+      button.style.removeProperty("color");
+    }
+    button.querySelectorAll<SVGElement>("svg, use").forEach((icon) => {
+      if (hasPending) {
+        icon.style.setProperty("color", pendingColor, "important");
+        icon.style.setProperty("fill", "currentColor", "important");
+        icon.style.setProperty("stroke", "currentColor", "important");
+      } else {
+        icon.style.removeProperty("color");
+        icon.style.removeProperty("fill");
+        icon.style.removeProperty("stroke");
+      }
+    });
+  });
+}
+
+function isDockButtonActive(button: HTMLElement): boolean {
+  return button.classList.contains("dock__item--active") || button.classList.contains("dock__item--activefocus");
+}
+
+function findDockButtons(): HTMLElement[] {
+  const selectors = [
+    `.dock__item[data-type="${DOCK_TYPE}"]`,
+    `[data-type="${DOCK_TYPE}"]`,
+    `[data-id="${DOCK_TYPE}"]`,
+    `[data-tab-type="${DOCK_TYPE}"]`,
+    `[title="文档回顾"]`,
+    `[aria-label="文档回顾"]`,
+  ];
+
+  const buttons = Array.from(document.querySelectorAll<HTMLElement>(selectors.join(","))).filter(
+    (element) => !element.classList.contains("siyuan-review-dock"),
+  );
+  document.querySelectorAll<HTMLElement>(".dock__item").forEach((button) => {
+    if (hasDockIcon(button) || (isReviewDockButton(button) && hasLegacyDockIcon(button))) {
+      buttons.push(button);
+    }
+  });
+  return Array.from(new Set(buttons));
+}
+
+function hasDockIcon(button: HTMLElement): boolean {
+  return Array.from(button.querySelectorAll<SVGUseElement>("use")).some((icon) => {
+    return getIconHref(icon) === DOCK_ICON;
+  });
+}
+
+function hasLegacyDockIcon(button: HTMLElement): boolean {
+  return Array.from(button.querySelectorAll<SVGUseElement>("use")).some((icon) => {
+    return LEGACY_DOCK_ICONS.has(getIconHref(icon));
+  });
+}
+
+function normalizeDockButtonIcon(button: HTMLElement): void {
+  button.querySelectorAll<SVGUseElement>("use").forEach((icon) => {
+    if (!LEGACY_DOCK_ICONS.has(getIconHref(icon))) {
+      return;
+    }
+    icon.setAttribute("href", DOCK_ICON);
+    icon.setAttribute("xlink:href", DOCK_ICON);
+  });
+}
+
+function isReviewDockButton(button: HTMLElement): boolean {
+  return (
+    button.dataset.type === DOCK_TYPE ||
+    button.dataset.id === DOCK_TYPE ||
+    button.dataset.tabType === DOCK_TYPE ||
+    button.getAttribute("title") === "文档回顾" ||
+    button.getAttribute("aria-label") === "文档回顾"
+  );
+}
+
+function getIconHref(icon: SVGUseElement): string {
+  return icon.getAttribute("href") ?? icon.getAttribute("xlink:href") ?? "";
+}
+
+function ensureDockButtonObserver(): void {
+  if (dockButtonObserver) {
+    return;
+  }
+
+  dockButtonObserver = new MutationObserver(() => {
+    applyDockButtonPendingState(dockButtonPendingCount);
+  });
+  dockButtonObserver.observe(document.body, {
+    attributes: true,
+    attributeFilter: ["class"],
+    childList: true,
+    subtree: true,
+  });
+}
+
+function disconnectDockButtonObserver(): void {
+  dockButtonObserver?.disconnect();
+  dockButtonObserver = undefined;
 }
 
 function bindEvents(root: HTMLElement, snapshot: DockSnapshot, actions: DockActions): void {

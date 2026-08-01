@@ -2,15 +2,42 @@
   position: relative;
 }
 
-.siyuan-review-topbar::after {
+.siyuan-review-dock-button--pending {
+  position: relative;
+  color: var(--b3-theme-error, #d23f31) !important;
+}
+
+.siyuan-review-dock-button--pending::after {
   content: attr(data-review-count);
+  position: absolute;
+  top: 1px;
+  right: 1px;
+  box-sizing: border-box;
   display: inline-flex;
-  min-width: 16px;
-  height: 16px;
+  min-width: 14px;
+  height: 14px;
   align-items: center;
   justify-content: center;
-  border-radius: 8px;
-  font-size: 11px;
+  padding: 0 3px;
+  border: 2px solid var(--b3-theme-background, #fff);
+  border-radius: 999px;
+  background: var(--b3-theme-error, #d23f31);
+  color: var(--b3-theme-background, #fff);
+  box-shadow: 0 1px 4px rgb(0 0 0 / 18%);
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+  pointer-events: none;
+  transform: translate(32%, -32%);
+}
+
+.siyuan-review-dock-button--pending svg {
+  fill: currentColor !important;
+  stroke: currentColor !important;
+}
+
+.siyuan-review-dock-button--pending:is(.dock__item--active, .dock__item--activefocus) {
+  color: var(--b3-theme-background, #fff) !important;
 }
 
 .siyuan-review-dock {
