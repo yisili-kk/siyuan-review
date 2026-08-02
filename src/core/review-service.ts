@@ -5,9 +5,10 @@ import type {
   ReviewFeedback,
   StartReviewResult,
 } from "../types/review";
-import type { ReviewIntervals } from "../types/settings";
+import type { ReviewIntervals, ReviewSchedulingSettings } from "../types/settings";
 import { addDays, secondsBetween, toDateKey } from "../utils/date";
 import { createReviewEventId } from "../utils/id";
+import { calculateNextInterval } from "./memory-interval";
 
 export function startReview(plan: DailyPlan, docId: string, nowIso = new Date().toISOString()): StartReviewResult {
   const item = plan.items.find((planItem) => planItem.docId === docId);
@@ -31,6 +32,7 @@ export function completeReview(input: {
   plan: DailyPlan;
   feedback: ReviewFeedback;
   intervals: ReviewIntervals;
+  scheduling?: ReviewSchedulingSettings;
   completedAt?: string;
 }): { doc: ReviewDocState; plan: DailyPlan; event: ReviewEvent } {
   const completedAt = input.completedAt ?? new Date().toISOString();
@@ -45,7 +47,13 @@ export function completeReview(input: {
     throw new Error(`Document ${input.doc.docId} cannot be completed from status ${item.status}.`);
   }
 
-  const nextReviewAt = addDays(completedDate, input.intervals[input.feedback]);
+  const nextInterval = calculateNextInterval({
+    doc: input.doc,
+    feedback: input.feedback,
+    intervals: input.intervals,
+    scheduling: input.scheduling,
+  });
+  const nextReviewAt = addDays(completedDate, nextInterval.intervalDays);
   const durationSeconds = secondsBetween(item.startedAt, completedAt);
 
   item.status = input.feedback === "skipped" ? "skipped" : "done";
@@ -58,6 +66,7 @@ export function completeReview(input: {
     nextReviewAt,
     status: nextStatus(input.feedback, input.doc.status),
     priorityBoost: nextPriorityBoost(input.feedback, input.doc.priorityBoost),
+    ...nextInterval.memoryState,
   };
 
   const event: ReviewEvent = {
@@ -68,6 +77,7 @@ export function completeReview(input: {
     completedAt,
     durationSeconds,
     nextReviewAt,
+    intervalDays: nextInterval.intervalDays,
   };
 
   return { doc, plan: input.plan, event };

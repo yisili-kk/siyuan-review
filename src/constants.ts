@@ -25,6 +25,9 @@ export const DEFAULT_SETTINGS: ReviewSettings = {
     needsRefactor: 3,
     skipped: 1,
   },
+  scheduling: {
+    maxIntervalDays: 180,
+  },
   ai: {
     enabled: false,
     baseUrl: "",

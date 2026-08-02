@@ -8,6 +8,10 @@ export type ReviewIntervals = {
   skipped: number;
 };
 
+export type ReviewSchedulingSettings = {
+  maxIntervalDays: number;
+};
+
 export type AiSettings = {
   enabled: boolean;
   baseUrl: string;
@@ -29,6 +33,7 @@ export type ReviewSettings = {
   dailyLimit: number;
   reviewTag: string;
   intervals: ReviewIntervals;
+  scheduling: ReviewSchedulingSettings;
   ai: AiSettings;
   dataRetention: DataRetentionSettings;
 };

@@ -249,6 +249,7 @@ export default class SiyuanReviewPlugin extends Plugin {
         plan,
         feedback,
         intervals: settings.intervals,
+        scheduling: settings.scheduling,
       });
 
       store.upsertDocs([result.doc]);

@@ -894,48 +894,6 @@
   min-width: 0;
 }
 
-.siyuan-review-interval-grid {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(104px, 1fr));
-  gap: 10px;
-}
-
-.siyuan-review-interval-field {
-  display: grid;
-  gap: 6px;
-  min-width: 0;
-  padding: 10px;
-  border: 1px solid var(--b3-border-color);
-  border-radius: 8px;
-  background: var(--b3-theme-background);
-}
-
-.siyuan-review-interval-field > span:first-child {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-weight: 500;
-}
-
-.siyuan-review-input-with-unit {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  align-items: center;
-  gap: 6px;
-}
-
-.siyuan-review-input-with-unit input {
-  box-sizing: border-box;
-  width: 100%;
-  min-width: 0;
-}
-
-.siyuan-review-input-with-unit em {
-  color: var(--b3-theme-on-surface);
-  font-size: 12px;
-  font-style: normal;
-}
-
 .siyuan-review-ai-toggle {
   display: grid;
   grid-template-columns: 1fr auto;
@@ -969,10 +927,6 @@
   .siyuan-review-setting-fields--two,
   .siyuan-review-setting-fields {
     grid-template-columns: 1fr;
-  }
-
-  .siyuan-review-interval-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .siyuan-review-cloze__head,

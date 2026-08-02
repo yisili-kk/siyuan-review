@@ -42,6 +42,11 @@ export type ReviewDocState = {
   nextReviewAt?: string;
   status?: ReviewDocStatus;
   priorityBoost?: number;
+  reviewCount?: number;
+  successStreak?: number;
+  lapseCount?: number;
+  currentIntervalDays?: number;
+  lastFeedback?: ReviewFeedback;
   questionCache?: QuestionCache;
   missingSince?: string;
   clozeCheckCount?: number;
@@ -74,6 +79,7 @@ export type ReviewEvent = {
   completedAt: string;
   durationSeconds?: number;
   nextReviewAt: string;
+  intervalDays?: number;
 };
 
 export type ReviewData = {

@@ -105,20 +105,6 @@ function renderSettingsSections(settings: ReviewSettings, notebooks: NotebookInf
 
     <section class="siyuan-review-setting-section">
       <div class="siyuan-review-setting-section__head">
-        <h3>反馈间隔</h3>
-        <p>提交反馈后，插件会按下面的天数安排下一次回顾。</p>
-      </div>
-      <div class="siyuan-review-interval-grid">
-        ${numberInput("valuable", "已补充想法", settings.intervals.valuable)}
-        ${numberInput("normal", "已完成阅读", settings.intervals.normal)}
-        ${numberInput("needsSupplement", "需要补充", settings.intervals.needsSupplement)}
-        ${numberInput("needsRefactor", "需要重构", settings.intervals.needsRefactor)}
-        ${numberInput("skipped", "暂时跳过", settings.intervals.skipped)}
-      </div>
-    </section>
-
-    <section class="siyuan-review-setting-section">
-      <div class="siyuan-review-setting-section__head">
         <h3>AI 增强</h3>
         <p>开启后，打开文档时会尝试生成更贴合内容的回顾问题。</p>
       </div>
@@ -169,11 +155,10 @@ function readSettingsForm(root: HTMLElement, current: ReviewSettings): ReviewSet
     dailyLimit: readNumber(root, "dailyLimit", current.dailyLimit, 1, 50),
     reviewTag: readString(root, "reviewTag", current.reviewTag),
     intervals: {
-      valuable: readNumber(root, "valuable", current.intervals.valuable, 1, 365),
-      normal: readNumber(root, "normal", current.intervals.normal, 1, 365),
-      needsSupplement: readNumber(root, "needsSupplement", current.intervals.needsSupplement, 1, 365),
-      needsRefactor: readNumber(root, "needsRefactor", current.intervals.needsRefactor, 1, 365),
-      skipped: readNumber(root, "skipped", current.intervals.skipped, 1, 365),
+      ...current.intervals,
+    },
+    scheduling: {
+      ...current.scheduling,
     },
     ai: {
       ...current.ai,
@@ -191,17 +176,6 @@ function readSettingsForm(root: HTMLElement, current: ReviewSettings): ReviewSet
       pruneMissingDocsDays: readNumber(root, "pruneMissingDocsDays", current.dataRetention.pruneMissingDocsDays, 30, 3650),
     },
   };
-}
-
-function numberInput(name: string, label: string, value: number): string {
-  return `
-<label class="siyuan-review-interval-field">
-  <span>${label}</span>
-  <span class="siyuan-review-input-with-unit">
-    <input class="b3-text-field" name="${name}" type="number" min="1" max="365" value="${value}">
-    <em>天</em>
-  </span>
-</label>`;
 }
 
 function textInput(

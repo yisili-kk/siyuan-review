@@ -23,6 +23,10 @@ export function mergeSettings(saved: Partial<ReviewSettings> | undefined): Revie
       ...DEFAULT_SETTINGS.intervals,
       ...saved?.intervals,
     },
+    scheduling: {
+      ...DEFAULT_SETTINGS.scheduling,
+      ...saved?.scheduling,
+    },
     ai: {
       ...DEFAULT_SETTINGS.ai,
       ...saved?.ai,

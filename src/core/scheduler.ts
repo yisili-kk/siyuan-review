@@ -23,6 +23,8 @@ type ScoredCandidate = {
 
 const TERMINAL_STATUSES = new Set(["done", "skipped"]);
 const OVERDUE_DAY_WEIGHT = 20;
+const LAPSE_WEIGHT = 25;
+const MAX_LAPSE_PRIORITY = 200;
 
 export function buildDailyPlan(input: BuildDailyPlanInput): DailyPlan {
   const nowIso = input.nowIso ?? new Date().toISOString();
@@ -119,6 +121,7 @@ function scoreCandidate(candidate: ReviewCandidate, date: string): ScoredCandida
   const neverReviewedPriority = candidate.lastReviewedAt ? 0 : 200;
   const oldestReviewedPriority = candidate.lastReviewedAt ? daysSince(candidate.lastReviewedAt, date) : 0;
   const overduePriority = getOverduePriority(candidate.nextReviewAt, date);
+  const lapsePriority = Math.min((candidate.lapseCount ?? 0) * LAPSE_WEIGHT, MAX_LAPSE_PRIORITY);
   const randomJitter = Math.random();
 
   const reason = getReason(candidate, date);
@@ -126,7 +129,14 @@ function scoreCandidate(candidate: ReviewCandidate, date: string): ScoredCandida
   return {
     candidate,
     reason,
-    score: overduePriority + statusPriority + neverReviewedPriority + oldestReviewedPriority + priorityBoost + randomJitter,
+    score:
+      overduePriority +
+      statusPriority +
+      neverReviewedPriority +
+      oldestReviewedPriority +
+      priorityBoost +
+      lapsePriority +
+      randomJitter,
   };
 }
 
