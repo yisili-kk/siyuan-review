@@ -1,6 +1,13 @@
 import { Dialog, showMessage } from "siyuan";
 import { isDue } from "../utils/date";
 import type { DailyPlan, ReviewCandidate, ReviewItem } from "../types/review";
+import {
+  getActiveTodayItemIds,
+  getPoolCategories,
+  getPoolStatusKey,
+  getReviewCenterStats,
+  type ReviewCenterStatusKey,
+} from "./review-center-model";
 
 const PAGE_SIZE = 10;
 
@@ -36,7 +43,7 @@ function buildReviewCenterHtml(input: {
   items: ReviewCandidate[];
   todayPlan?: DailyPlan;
 }): string {
-  const stats = getPoolStats(input.items, input.todayPlan, input.date);
+  const stats = getReviewCenterStats(input.items, input.todayPlan, input.date);
   const hasRows = input.items.some((item) => item.exists);
   return `
 <div class="siyuan-review-center">
@@ -98,13 +105,13 @@ function renderPoolTable(items: ReviewCandidate[], todayPlan: DailyPlan | undefi
     return '<p class="siyuan-review-empty">回顾池里还没有回顾项。</p>';
   }
 
-  const todayItemIds = new Set(todayPlan?.items.map((item) => item.itemId) ?? []);
+  const activeTodayItemIds = getActiveTodayItemIds(todayPlan);
   const rows = visibleItems
     .slice()
     .sort((a, b) => sortPoolItems(a, b, date))
     .map((item) => {
-      const categories = getPoolCategories(item, todayItemIds, date);
-      const status = getPoolStatus(item, todayItemIds, date);
+      const categories = getPoolCategories(item, activeTodayItemIds, date);
+      const status = renderPoolStatus(getPoolStatusKey(item, activeTodayItemIds, date));
       const typeLabel = item.itemType === "document" ? "文档" : "片段";
       const sourceLine =
         item.itemType === "block"
@@ -269,7 +276,7 @@ function replacePoolTable(root: HTMLElement, items: ReviewCandidate[], todayPlan
 }
 
 function updateStats(root: HTMLElement, items: ReviewCandidate[], todayPlan: DailyPlan | undefined, date: string): void {
-  const stats = getPoolStats(items, todayPlan, date);
+  const stats = getReviewCenterStats(items, todayPlan, date);
   const statsNode = root.querySelector<HTMLElement>('[data-role="pool-stats"]');
   if (statsNode) {
     statsNode.textContent = `${stats.total} 个回顾项 · 今日 ${stats.today} 个 · 已到期 ${stats.due} 个`;
@@ -362,20 +369,6 @@ function readCurrentPage(root: HTMLElement): number {
   return Number.isFinite(page) && page > 0 ? Math.trunc(page) : 1;
 }
 
-function getPoolStats(items: ReviewCandidate[], todayPlan: DailyPlan | undefined, date: string): {
-  total: number;
-  today: number;
-  due: number;
-} {
-  const todayItemIds = new Set(todayPlan?.items.map((item) => item.itemId) ?? []);
-  const existingItems = items.filter((item) => item.exists);
-  return {
-    total: existingItems.length,
-    today: existingItems.filter((item) => todayItemIds.has(item.itemId)).length,
-    due: existingItems.filter((item) => isDue(item.nextReviewAt, date)).length,
-  };
-}
-
 function sortPoolItems(a: ReviewItem, b: ReviewItem, date: string): number {
   const aDue = isDue(a.nextReviewAt, date) ? 0 : 1;
   const bDue = isDue(b.nextReviewAt, date) ? 0 : 1;
@@ -392,40 +385,20 @@ function sortPoolItems(a: ReviewItem, b: ReviewItem, date: string): number {
   return a.title.localeCompare(b.title);
 }
 
-function getPoolCategories(item: ReviewCandidate, todayItemIds: Set<string>, date: string): string[] {
-  const categories = ["all", item.itemType];
-  if (todayItemIds.has(item.itemId)) {
-    categories.push("today");
-  }
-  if (isDue(item.nextReviewAt, date)) {
-    categories.push("due");
-  }
-  if (!item.lastReviewedAt) {
-    categories.push("neverReviewed");
-  }
-  if (item.status === "needsSupplement") {
-    categories.push("needsSupplement");
-  }
-  if (item.status === "needsRefactor") {
-    categories.push("needsRefactor");
-  }
-  return categories;
-}
-
-function getPoolStatus(item: ReviewCandidate, todayItemIds: Set<string>, date: string): string {
-  if (todayItemIds.has(item.itemId)) {
+function renderPoolStatus(status: ReviewCenterStatusKey): string {
+  if (status === "today") {
     return '<span class="siyuan-review-pool-status siyuan-review-pool-status--primary">今日待回顾</span>';
   }
-  if (item.status === "needsSupplement") {
+  if (status === "needsSupplement") {
     return '<span class="siyuan-review-pool-status siyuan-review-pool-status--warning">需要补充</span>';
   }
-  if (item.status === "needsRefactor") {
+  if (status === "needsRefactor") {
     return '<span class="siyuan-review-pool-status siyuan-review-pool-status--warning">需要重构</span>';
   }
-  if (isDue(item.nextReviewAt, date)) {
+  if (status === "due") {
     return '<span class="siyuan-review-pool-status siyuan-review-pool-status--primary">已到期</span>';
   }
-  if (!item.lastReviewedAt) {
+  if (status === "neverReviewed") {
     return '<span class="siyuan-review-pool-status">从未回顾</span>';
   }
   return '<span class="siyuan-review-pool-status siyuan-review-pool-status--muted">未到期</span>';
