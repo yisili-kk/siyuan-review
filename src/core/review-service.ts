@@ -33,11 +33,13 @@ export function completeReview(input: {
   feedback: ReviewFeedback;
   intervals: ReviewIntervals;
   scheduling?: ReviewSchedulingSettings;
+  note?: string;
   completedAt?: string;
 }): { doc: ReviewDocState; plan: DailyPlan; event: ReviewEvent } {
   const completedAt = input.completedAt ?? new Date().toISOString();
   const completedDate = toDateKey(new Date(completedAt));
   const item = input.plan.items.find((planItem) => planItem.docId === input.doc.docId);
+  const note = input.note?.trim();
 
   if (!item) {
     throw new Error(`Document ${input.doc.docId} is not in today's review plan.`);
@@ -73,6 +75,7 @@ export function completeReview(input: {
     id: createReviewEventId(input.doc.docId, completedAt),
     docId: input.doc.docId,
     feedback: input.feedback,
+    note: note || undefined,
     startedAt: item.startedAt,
     completedAt,
     durationSeconds,

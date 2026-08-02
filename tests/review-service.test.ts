@@ -105,6 +105,32 @@ describe("review-service", () => {
     expect(result.doc.currentIntervalDays).toBe(3);
   });
 
+  it("stores processing notes on review events", () => {
+    const plan: DailyPlan = {
+      date: "2026-07-26",
+      generatedAt: "2026-07-26T08:00:00.000Z",
+      updatedAt: "2026-07-26T08:00:00.000Z",
+      items: [{ docId: "doc-a", reason: "due", status: "reviewing", startedAt: "2026-07-26T08:00:00.000Z" }],
+    };
+    const doc: ReviewDocState = {
+      docId: "doc-a",
+      notebookId: "notebook",
+      title: "Doc A",
+      path: "/Doc A",
+    };
+
+    const result = completeReview({
+      doc,
+      plan,
+      feedback: "needsSupplement",
+      intervals,
+      note: "  补充案例和来源  ",
+      completedAt: "2026-07-26T08:05:00.000Z",
+    });
+
+    expect(result.event.note).toBe("补充案例和来源");
+  });
+
   it("caps growing intervals with the configured maximum", () => {
     const plan: DailyPlan = {
       date: "2026-07-26",

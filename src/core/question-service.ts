@@ -16,10 +16,6 @@ export function canUseAiQuestionGeneration(ai: AiSettings): boolean {
   return ai.enabled && Boolean(ai.baseUrl.trim()) && Boolean(ai.apiKey.trim()) && Boolean(ai.model.trim()) && ai.maxChars > 0;
 }
 
-export function shouldAutoGenerateQuestions(doc: ReviewDocState): boolean {
-  return !doc.questionCache;
-}
-
 export async function getReviewQuestions(input: {
   doc: ReviewDocState;
   content: string;

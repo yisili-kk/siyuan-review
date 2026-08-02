@@ -3,14 +3,14 @@ import { DEFAULT_SETTINGS } from "./constants";
 import { buildDailyPlan, getIncompleteCount, syncDailyPlanAvailability } from "./core/scheduler";
 import { scanReviewCandidates, mergeCandidatesWithStoredState } from "./core/document-indexer";
 import { completeReview, recordClozeCheck, startReview } from "./core/review-service";
-import { canUseAiQuestionGeneration, getReviewQuestions, shouldAutoGenerateQuestions } from "./core/question-service";
+import { canUseAiQuestionGeneration, getReviewQuestions } from "./core/question-service";
 import { SettingsStore } from "./storage/settings-store";
 import { ReviewStore } from "./storage/review-store";
 import type { PersistAdapter } from "./storage/persist-adapter";
 import { markMissingDocs, pruneReviewData } from "./storage/data-retention";
 import { toDateKey } from "./utils/date";
 import { createTopbarController, type TopbarController } from "./ui/topbar";
-import { createDockController, type DockController } from "./ui/dock";
+import { createDockController, type DockController, type ProcessingFeedbackDraft } from "./ui/dock";
 import { getDocumentMarkdown, openDocument } from "./siyuan/document";
 import { openClozeDialog } from "./ui/cloze-dialog";
 import { openReviewCenterDialog } from "./ui/review-center-dialog";
@@ -30,6 +30,7 @@ export default class SiyuanReviewPlugin extends Plugin {
   private enhancingQuestionDocIds = new Set<string>();
   private submittingFeedbackDocIds = new Set<string>();
   private openingClozeDocIds = new Set<string>();
+  private processingFeedbackDrafts = new Map<string, ProcessingFeedbackDraft>();
   private startupRefreshTimer?: ReturnType<typeof globalThis.setTimeout>;
   private unloaded = false;
 
@@ -63,8 +64,21 @@ export default class SiyuanReviewPlugin extends Plugin {
       onSelectDoc: async (docId) => {
         await this.selectDoc(docId);
       },
-      onFeedback: async (docId, feedback) => {
-        await this.submitFeedback(docId, feedback);
+      onFeedback: async (docId, feedback, note) => {
+        return this.submitFeedback(docId, feedback, note);
+      },
+      onOpenProcessingFeedback: (docId) => {
+        if (!this.processingFeedbackDrafts.has(docId)) {
+          this.processingFeedbackDrafts.set(docId, {});
+        }
+        this.renderCurrentDock();
+      },
+      onCancelProcessingFeedback: (docId) => {
+        this.processingFeedbackDrafts.delete(docId);
+        this.renderCurrentDock();
+      },
+      onUpdateProcessingFeedbackDraft: (docId, draft) => {
+        this.processingFeedbackDrafts.set(docId, draft);
       },
       onOpenSettings: () => {
         void this.openSettings();
@@ -210,25 +224,22 @@ export default class SiyuanReviewPlugin extends Plugin {
       this.selectedDocId = docId;
       this.renderCurrentDock();
       this.topbar?.setBadge(getIncompleteCount(plan));
-      if (planItem.status !== "done" && planItem.status !== "skipped" && shouldAutoGenerateQuestions(doc)) {
-        void this.enhanceQuestions(docId);
-      }
     } catch (error) {
       console.error("[siyuan-review] failed to open document", error);
       showMessage("打开文档失败。", 3000, "error");
     }
   }
 
-  private async submitFeedback(docId: string, feedback: ReviewFeedback): Promise<void> {
+  private async submitFeedback(docId: string, feedback: ReviewFeedback, note?: string): Promise<boolean> {
     if (this.submittingFeedbackDocIds.has(docId)) {
       showMessage("本次反馈正在记录中，请稍候。", 2000);
-      return;
+      return false;
     }
 
     const settings = (await this.settingsStore?.load()) ?? DEFAULT_SETTINGS;
     const store = this.reviewStore;
     if (!store) {
-      return;
+      return false;
     }
 
     const data = store.getData();
@@ -237,7 +248,7 @@ export default class SiyuanReviewPlugin extends Plugin {
 
     if (!plan || !doc) {
       showMessage("无法提交反馈，今日列表或文档状态不存在。", 3000, "error");
-      return;
+      return false;
     }
 
     this.submittingFeedbackDocIds.add(docId);
@@ -250,6 +261,7 @@ export default class SiyuanReviewPlugin extends Plugin {
         feedback,
         intervals: settings.intervals,
         scheduling: settings.scheduling,
+        note,
       });
 
       store.upsertDocs([result.doc]);
@@ -257,13 +269,16 @@ export default class SiyuanReviewPlugin extends Plugin {
       store.addHistory(result.event);
       await store.save();
 
+      this.processingFeedbackDrafts.delete(docId);
       this.selectedDocId = undefined;
       this.renderCurrentDock();
       this.topbar?.setBadge(getIncompleteCount(result.plan));
       showMessage("已记录本次回顾。", 2000);
+      return true;
     } catch (error) {
       console.error("[siyuan-review] failed to submit feedback", error);
       showMessage("提交反馈失败。", 3000, "error");
+      return false;
     } finally {
       this.submittingFeedbackDocIds.delete(docId);
       this.renderCurrentDock();
@@ -367,11 +382,16 @@ export default class SiyuanReviewPlugin extends Plugin {
       return;
     }
 
+    if (!canUseAiQuestionGeneration(settings.ai)) {
+      showMessage("请先在设置中配置 AI 后再生成问题。", 3000, "error");
+      return;
+    }
+
     this.enhancingQuestionDocIds.add(docId);
     this.renderCurrentDock();
 
     try {
-      const content = canUseAiQuestionGeneration(settings.ai) ? await getDocumentMarkdown(docId) : "";
+      const content = await getDocumentMarkdown(docId);
       const questionCache = await getReviewQuestions({
         doc,
         content,
@@ -463,6 +483,8 @@ export default class SiyuanReviewPlugin extends Plugin {
     this.dock?.render({
       plan: data.dailyPlans[toDateKey()],
       docs: data.docs,
+      history: data.history,
+      processingFeedbackDrafts: Object.fromEntries(this.processingFeedbackDrafts),
       selectedDocId: this.selectedDocId,
       generatingQuestionDocIds: Array.from(this.enhancingQuestionDocIds),
       submittingFeedbackDocIds: Array.from(this.submittingFeedbackDocIds),

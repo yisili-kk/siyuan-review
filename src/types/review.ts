@@ -75,6 +75,7 @@ export type ReviewEvent = {
   id: string;
   docId: string;
   feedback: ReviewFeedback;
+  note?: string;
   startedAt?: string;
   completedAt: string;
   durationSeconds?: number;
