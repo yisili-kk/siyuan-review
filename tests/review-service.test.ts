@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { completeReview, recordClozeCheck, startReview } from "../src/core/review-service";
-import type { DailyPlan, ReviewDocState } from "../src/types/review";
+import type { DailyPlan, ReviewItem } from "../src/types/review";
 import type { ReviewIntervals } from "../src/types/settings";
 
 const intervals: ReviewIntervals = {
@@ -17,26 +17,31 @@ describe("review-service", () => {
       date: "2026-07-26",
       generatedAt: "2026-07-26T08:00:00.000Z",
       updatedAt: "2026-07-26T08:00:00.000Z",
-      items: [{ docId: "doc-a", reason: "neverReviewed", status: "pending" }],
+      items: [{ itemId: "item-a", reason: "neverReviewed", status: "pending" }],
     };
-    const doc: ReviewDocState = {
-      docId: "doc-a",
+    const item: ReviewItem = {
+      itemId: "item-a",
+      itemType: "document",
+      docId: "item-a",
       notebookId: "notebook",
+      blockType: "d",
       title: "Doc A",
+      sourceTitle: "Doc A",
       path: "/Doc A",
+      contentPreview: "Doc A",
     };
 
-    startReview(plan, "doc-a", "2026-07-26T08:00:00.000Z");
+    startReview(plan, "item-a", "2026-07-26T08:00:00.000Z");
     const result = completeReview({
-      doc,
+      item,
       plan,
       feedback: "needsSupplement",
       intervals,
       completedAt: "2026-07-26T08:05:30.000Z",
     });
 
-    expect(result.doc.nextReviewAt).toBe("2026-07-29");
-    expect(result.doc.status).toBe("needsSupplement");
+    expect(result.item.nextReviewAt).toBe("2026-07-29");
+    expect(result.item.status).toBe("needsSupplement");
     expect(result.event.durationSeconds).toBe(330);
     expect(result.plan.items[0]?.status).toBe("done");
   });
@@ -46,30 +51,35 @@ describe("review-service", () => {
       date: "2026-07-26",
       generatedAt: "2026-07-26T08:00:00.000Z",
       updatedAt: "2026-07-26T08:00:00.000Z",
-      items: [{ docId: "doc-a", reason: "due", status: "reviewing", startedAt: "2026-07-26T08:00:00.000Z" }],
+      items: [{ itemId: "item-a", reason: "due", status: "reviewing", startedAt: "2026-07-26T08:00:00.000Z" }],
     };
-    const doc: ReviewDocState = {
-      docId: "doc-a",
+    const item: ReviewItem = {
+      itemId: "item-a",
+      itemType: "document",
+      docId: "item-a",
       notebookId: "notebook",
+      blockType: "d",
       title: "Doc A",
+      sourceTitle: "Doc A",
       path: "/Doc A",
+      contentPreview: "Doc A",
       reviewCount: 2,
       successStreak: 2,
       currentIntervalDays: 7,
     };
 
     const result = completeReview({
-      doc,
+      item,
       plan,
       feedback: "normal",
       intervals,
       completedAt: "2026-07-26T08:05:00.000Z",
     });
 
-    expect(result.doc.nextReviewAt).toBe("2026-08-09");
-    expect(result.doc.reviewCount).toBe(3);
-    expect(result.doc.successStreak).toBe(3);
-    expect(result.doc.currentIntervalDays).toBe(14);
+    expect(result.item.nextReviewAt).toBe("2026-08-09");
+    expect(result.item.reviewCount).toBe(3);
+    expect(result.item.successStreak).toBe(3);
+    expect(result.item.currentIntervalDays).toBe(14);
     expect(result.event.intervalDays).toBe(14);
   });
 
@@ -78,13 +88,18 @@ describe("review-service", () => {
       date: "2026-07-26",
       generatedAt: "2026-07-26T08:00:00.000Z",
       updatedAt: "2026-07-26T08:00:00.000Z",
-      items: [{ docId: "doc-a", reason: "due", status: "reviewing", startedAt: "2026-07-26T08:00:00.000Z" }],
+      items: [{ itemId: "item-a", reason: "due", status: "reviewing", startedAt: "2026-07-26T08:00:00.000Z" }],
     };
-    const doc: ReviewDocState = {
-      docId: "doc-a",
+    const item: ReviewItem = {
+      itemId: "item-a",
+      itemType: "document",
+      docId: "item-a",
       notebookId: "notebook",
+      blockType: "d",
       title: "Doc A",
+      sourceTitle: "Doc A",
       path: "/Doc A",
+      contentPreview: "Doc A",
       reviewCount: 4,
       successStreak: 4,
       lapseCount: 1,
@@ -92,17 +107,17 @@ describe("review-service", () => {
     };
 
     const result = completeReview({
-      doc,
+      item,
       plan,
       feedback: "needsRefactor",
       intervals,
       completedAt: "2026-07-26T08:05:00.000Z",
     });
 
-    expect(result.doc.nextReviewAt).toBe("2026-07-29");
-    expect(result.doc.successStreak).toBe(0);
-    expect(result.doc.lapseCount).toBe(2);
-    expect(result.doc.currentIntervalDays).toBe(3);
+    expect(result.item.nextReviewAt).toBe("2026-07-29");
+    expect(result.item.successStreak).toBe(0);
+    expect(result.item.lapseCount).toBe(2);
+    expect(result.item.currentIntervalDays).toBe(3);
   });
 
   it("stores processing notes on review events", () => {
@@ -110,17 +125,22 @@ describe("review-service", () => {
       date: "2026-07-26",
       generatedAt: "2026-07-26T08:00:00.000Z",
       updatedAt: "2026-07-26T08:00:00.000Z",
-      items: [{ docId: "doc-a", reason: "due", status: "reviewing", startedAt: "2026-07-26T08:00:00.000Z" }],
+      items: [{ itemId: "item-a", reason: "due", status: "reviewing", startedAt: "2026-07-26T08:00:00.000Z" }],
     };
-    const doc: ReviewDocState = {
-      docId: "doc-a",
+    const item: ReviewItem = {
+      itemId: "item-a",
+      itemType: "document",
+      docId: "item-a",
       notebookId: "notebook",
+      blockType: "d",
       title: "Doc A",
+      sourceTitle: "Doc A",
       path: "/Doc A",
+      contentPreview: "Doc A",
     };
 
     const result = completeReview({
-      doc,
+      item,
       plan,
       feedback: "needsSupplement",
       intervals,
@@ -136,20 +156,25 @@ describe("review-service", () => {
       date: "2026-07-26",
       generatedAt: "2026-07-26T08:00:00.000Z",
       updatedAt: "2026-07-26T08:00:00.000Z",
-      items: [{ docId: "doc-a", reason: "due", status: "reviewing", startedAt: "2026-07-26T08:00:00.000Z" }],
+      items: [{ itemId: "item-a", reason: "due", status: "reviewing", startedAt: "2026-07-26T08:00:00.000Z" }],
     };
-    const doc: ReviewDocState = {
-      docId: "doc-a",
+    const item: ReviewItem = {
+      itemId: "item-a",
+      itemType: "document",
+      docId: "item-a",
       notebookId: "notebook",
+      blockType: "d",
       title: "Doc A",
+      sourceTitle: "Doc A",
       path: "/Doc A",
+      contentPreview: "Doc A",
       reviewCount: 8,
       successStreak: 8,
       currentIntervalDays: 120,
     };
 
     const result = completeReview({
-      doc,
+      item,
       plan,
       feedback: "valuable",
       intervals,
@@ -157,8 +182,8 @@ describe("review-service", () => {
       completedAt: "2026-07-26T08:05:00.000Z",
     });
 
-    expect(result.doc.nextReviewAt).toBe("2027-01-22");
-    expect(result.doc.currentIntervalDays).toBe(180);
+    expect(result.item.nextReviewAt).toBe("2027-01-22");
+    expect(result.item.currentIntervalDays).toBe(180);
     expect(result.event.intervalDays).toBe(180);
   });
 
@@ -167,30 +192,35 @@ describe("review-service", () => {
       date: "2026-07-26",
       generatedAt: "2026-07-26T08:00:00.000Z",
       updatedAt: "2026-07-26T08:00:00.000Z",
-      items: [{ docId: "doc-a", reason: "due", status: "reviewing", startedAt: "2026-07-26T08:00:00.000Z" }],
+      items: [{ itemId: "item-a", reason: "due", status: "reviewing", startedAt: "2026-07-26T08:00:00.000Z" }],
     };
-    const doc: ReviewDocState = {
-      docId: "doc-a",
+    const item: ReviewItem = {
+      itemId: "item-a",
+      itemType: "document",
+      docId: "item-a",
       notebookId: "notebook",
+      blockType: "d",
       title: "Doc A",
+      sourceTitle: "Doc A",
       path: "/Doc A",
+      contentPreview: "Doc A",
       reviewCount: 3,
       successStreak: 2,
       currentIntervalDays: 7,
     };
 
     const result = completeReview({
-      doc,
+      item,
       plan,
       feedback: "skipped",
       intervals,
       completedAt: "2026-07-26T08:05:00.000Z",
     });
 
-    expect(result.doc.nextReviewAt).toBe("2026-07-27");
-    expect(result.doc.reviewCount).toBe(3);
-    expect(result.doc.successStreak).toBe(2);
-    expect(result.doc.currentIntervalDays).toBe(7);
+    expect(result.item.nextReviewAt).toBe("2026-07-27");
+    expect(result.item.reviewCount).toBe(3);
+    expect(result.item.successStreak).toBe(2);
+    expect(result.item.currentIntervalDays).toBe(7);
     expect(result.plan.items[0]?.status).toBe("skipped");
   });
 
@@ -199,19 +229,24 @@ describe("review-service", () => {
       date: "2026-07-26",
       generatedAt: "2026-07-26T08:00:00.000Z",
       updatedAt: "2026-07-26T08:00:00.000Z",
-      items: [{ docId: "doc-a", reason: "neverReviewed", status: "done" }],
+      items: [{ itemId: "item-a", reason: "neverReviewed", status: "done" }],
     };
-    const doc: ReviewDocState = {
-      docId: "doc-a",
+    const item: ReviewItem = {
+      itemId: "item-a",
+      itemType: "document",
+      docId: "item-a",
       notebookId: "notebook",
+      blockType: "d",
       title: "Doc A",
+      sourceTitle: "Doc A",
       path: "/Doc A",
+      contentPreview: "Doc A",
     };
 
-    expect(() => startReview(plan, "doc-a", "2026-07-26T08:00:00.000Z")).toThrow(/cannot be started/);
+    expect(() => startReview(plan, "item-a", "2026-07-26T08:00:00.000Z")).toThrow(/cannot be started/);
     expect(() =>
       completeReview({
-        doc,
+        item,
         plan,
         feedback: "normal",
         intervals,
@@ -221,16 +256,21 @@ describe("review-service", () => {
   });
 
   it("increments cloze check count without changing review scheduling", () => {
-    const doc: ReviewDocState = {
-      docId: "doc-a",
+    const item: ReviewItem = {
+      itemId: "item-a",
+      itemType: "document",
+      docId: "item-a",
       notebookId: "notebook",
+      blockType: "d",
       title: "Doc A",
+      sourceTitle: "Doc A",
       path: "/Doc A",
+      contentPreview: "Doc A",
       nextReviewAt: "2026-08-02",
       clozeCheckCount: 2,
     };
 
-    const result = recordClozeCheck(doc);
+    const result = recordClozeCheck(item);
 
     expect(result.clozeCheckCount).toBe(3);
     expect(result.nextReviewAt).toBe("2026-08-02");

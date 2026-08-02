@@ -9,7 +9,7 @@ export function migrateReviewData(raw: unknown): ReviewData {
   if (raw.schemaVersion === DATA_SCHEMA_VERSION) {
     return {
       schemaVersion: DATA_SCHEMA_VERSION,
-      docs: isRecord(raw.docs) ? raw.docs : {},
+      items: isRecord(raw.items) ? raw.items : {},
       dailyPlans: isRecord(raw.dailyPlans) ? raw.dailyPlans : {},
       history: Array.isArray(raw.history) ? raw.history : [],
       lastNotifiedDate: typeof raw.lastNotifiedDate === "string" ? raw.lastNotifiedDate : undefined,
@@ -26,7 +26,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function createEmptyReviewData(): ReviewData {
   return {
     schemaVersion: DATA_SCHEMA_VERSION,
-    docs: {},
+    items: {},
     dailyPlans: {},
     history: [],
   };

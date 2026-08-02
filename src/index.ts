@@ -7,16 +7,16 @@ import { canUseAiQuestionGeneration, getReviewQuestions } from "./core/question-
 import { SettingsStore } from "./storage/settings-store";
 import { ReviewStore } from "./storage/review-store";
 import type { PersistAdapter } from "./storage/persist-adapter";
-import { markMissingDocs, pruneReviewData } from "./storage/data-retention";
+import { markMissingItems, pruneReviewData } from "./storage/data-retention";
 import { toDateKey } from "./utils/date";
 import { createTopbarController, type TopbarController } from "./ui/topbar";
 import { createDockController, type DockController, type ProcessingFeedbackDraft } from "./ui/dock";
-import { getDocumentMarkdown, openDocument } from "./siyuan/document";
+import { getBlockMarkdown, openReviewItem } from "./siyuan/document";
 import { openClozeDialog } from "./ui/cloze-dialog";
 import { openReviewCenterDialog } from "./ui/review-center-dialog";
 import { openSettingsDialog } from "./ui/settings-dialog";
 import { REVIEW_ICONS } from "./ui/icons";
-import type { ReviewCandidate, ReviewFeedback, ReviewDocState } from "./types/review";
+import type { DailyPlan, ReviewCandidate, ReviewFeedback, ReviewItem } from "./types/review";
 import { listNotebooks } from "./siyuan/notebook";
 import { generateAiQuestions } from "./ai/question-generator";
 import "./ui/styles.css";
@@ -26,10 +26,10 @@ export default class SiyuanReviewPlugin extends Plugin {
   private reviewStore?: ReviewStore;
   private topbar?: TopbarController;
   private dock?: DockController;
-  private selectedDocId?: string;
-  private enhancingQuestionDocIds = new Set<string>();
-  private submittingFeedbackDocIds = new Set<string>();
-  private openingClozeDocIds = new Set<string>();
+  private selectedItemId?: string;
+  private enhancingQuestionItemIds = new Set<string>();
+  private submittingFeedbackItemIds = new Set<string>();
+  private openingClozeItemIds = new Set<string>();
   private processingFeedbackDrafts = new Map<string, ProcessingFeedbackDraft>();
   private startupRefreshTimer?: ReturnType<typeof globalThis.setTimeout>;
   private unloaded = false;
@@ -48,43 +48,43 @@ export default class SiyuanReviewPlugin extends Plugin {
 
     this.dock = createDockController(this, {
       onRefresh: async () => {
-        this.selectedDocId = undefined;
+        this.selectedItemId = undefined;
         await this.refreshTodayPlan();
       },
       onRegenerate: async () => {
-        this.selectedDocId = undefined;
+        this.selectedItemId = undefined;
         await this.regenerateTodayPlan();
       },
-      onRegenerateQuestions: async (docId) => {
-        await this.enhanceQuestions(docId);
+      onRegenerateQuestions: async (itemId) => {
+        await this.enhanceQuestions(itemId);
       },
-      onOpenCloze: async (docId) => {
-        await this.openCloze(docId);
+      onOpenCloze: async (itemId) => {
+        await this.openCloze(itemId);
       },
-      onSelectDoc: async (docId) => {
-        await this.selectDoc(docId);
+      onSelectItem: async (itemId) => {
+        await this.selectItem(itemId);
       },
-      onFeedback: async (docId, feedback, note) => {
-        return this.submitFeedback(docId, feedback, note);
+      onFeedback: async (itemId, feedback, note) => {
+        return this.submitFeedback(itemId, feedback, note);
       },
-      onOpenProcessingFeedback: (docId) => {
-        if (!this.processingFeedbackDrafts.has(docId)) {
-          this.processingFeedbackDrafts.set(docId, {});
+      onOpenProcessingFeedback: (itemId) => {
+        if (!this.processingFeedbackDrafts.has(itemId)) {
+          this.processingFeedbackDrafts.set(itemId, {});
         }
         this.renderCurrentDock();
       },
-      onCancelProcessingFeedback: (docId) => {
-        this.processingFeedbackDrafts.delete(docId);
+      onCancelProcessingFeedback: (itemId) => {
+        this.processingFeedbackDrafts.delete(itemId);
         this.renderCurrentDock();
       },
-      onUpdateProcessingFeedbackDraft: (docId, draft) => {
-        this.processingFeedbackDrafts.set(docId, draft);
+      onUpdateProcessingFeedbackDraft: (itemId, draft) => {
+        this.processingFeedbackDrafts.set(itemId, draft);
       },
       onOpenSettings: () => {
         void this.openSettings();
       },
       onBack: () => {
-        this.selectedDocId = undefined;
+        this.selectedItemId = undefined;
         this.renderCurrentDock();
       },
     });
@@ -156,13 +156,13 @@ export default class SiyuanReviewPlugin extends Plugin {
 
     try {
       const settings = (await this.settingsStore?.load()) ?? DEFAULT_SETTINGS;
-      const candidates = mergeCandidatesWithStoredState(await scanReviewCandidates(settings), data.docs);
+      const candidates = mergeCandidatesWithStoredState(await scanReviewCandidates(settings), data.items);
       if (this.unloaded) {
         return false;
       }
 
-      store.upsertDocs(candidates);
-      store.upsertDocs(markMissingDocs(data.docs, candidates.map((candidate) => candidate.docId), date));
+      store.upsertItems(candidates);
+      store.upsertItems(markMissingItems(data.items, candidates.map((candidate) => candidate.itemId), date));
 
       const existingPlan = data.dailyPlans[date];
       const plan =
@@ -176,7 +176,7 @@ export default class SiyuanReviewPlugin extends Plugin {
             });
 
       store.setDailyPlan(plan);
-      await this.pruneStoredData(settings, candidates.map((candidate) => candidate.docId));
+      await this.pruneStoredData(settings, candidates.map((candidate) => candidate.itemId));
       await store.save();
       if (this.unloaded) {
         return false;
@@ -193,7 +193,7 @@ export default class SiyuanReviewPlugin extends Plugin {
     }
   }
 
-  private async selectDoc(docId: string): Promise<void> {
+  private async selectItem(itemId: string): Promise<void> {
     const store = this.reviewStore;
     if (!store) {
       return;
@@ -201,27 +201,27 @@ export default class SiyuanReviewPlugin extends Plugin {
 
     const data = store.getData();
     const plan = data.dailyPlans[toDateKey()];
-    const doc = data.docs[docId];
-    const planItem = plan?.items.find((item) => item.docId === docId);
+    const item = data.items[itemId];
+    const planItem = plan?.items.find((planItem) => planItem.itemId === itemId);
 
-    if (!plan || !doc || !planItem) {
-      showMessage("这个文档暂时不可用。", 3000, "error");
+    if (!plan || !item || !planItem) {
+      showMessage("这个回顾项暂时不可用。", 3000, "error");
       return;
     }
 
     if (planItem.status === "missing") {
-      showMessage("这个文档已不在当前回顾池中。", 3000, "error");
+      showMessage("这个回顾项已不在当前回顾池中。", 3000, "error");
       return;
     }
 
     try {
-      await openDocument(this.app, docId);
+      await openReviewItem(this.app, item.itemId);
       if (planItem.status !== "done" && planItem.status !== "skipped") {
-        startReview(plan, docId);
+        startReview(plan, itemId);
         store.setDailyPlan(plan);
         await store.save();
       }
-      this.selectedDocId = docId;
+      this.selectedItemId = itemId;
       this.renderCurrentDock();
       this.topbar?.setBadge(getIncompleteCount(plan));
     } catch (error) {
@@ -230,8 +230,8 @@ export default class SiyuanReviewPlugin extends Plugin {
     }
   }
 
-  private async submitFeedback(docId: string, feedback: ReviewFeedback, note?: string): Promise<boolean> {
-    if (this.submittingFeedbackDocIds.has(docId)) {
+  private async submitFeedback(itemId: string, feedback: ReviewFeedback, note?: string): Promise<boolean> {
+    if (this.submittingFeedbackItemIds.has(itemId)) {
       showMessage("本次反馈正在记录中，请稍候。", 2000);
       return false;
     }
@@ -244,19 +244,19 @@ export default class SiyuanReviewPlugin extends Plugin {
 
     const data = store.getData();
     const plan = data.dailyPlans[toDateKey()];
-    const doc = data.docs[docId];
+    const item = data.items[itemId];
 
-    if (!plan || !doc) {
-      showMessage("无法提交反馈，今日列表或文档状态不存在。", 3000, "error");
+    if (!plan || !item) {
+      showMessage("无法提交反馈，今日列表或回顾项状态不存在。", 3000, "error");
       return false;
     }
 
-    this.submittingFeedbackDocIds.add(docId);
+    this.submittingFeedbackItemIds.add(itemId);
     this.renderCurrentDock();
 
     try {
       const result = completeReview({
-        doc,
+        item,
         plan,
         feedback,
         intervals: settings.intervals,
@@ -264,13 +264,13 @@ export default class SiyuanReviewPlugin extends Plugin {
         note,
       });
 
-      store.upsertDocs([result.doc]);
+      store.upsertItems([result.item]);
       store.setDailyPlan(result.plan);
       store.addHistory(result.event);
       await store.save();
 
-      this.processingFeedbackDrafts.delete(docId);
-      this.selectedDocId = undefined;
+      this.processingFeedbackDrafts.delete(itemId);
+      this.selectedItemId = undefined;
       this.renderCurrentDock();
       this.topbar?.setBadge(getIncompleteCount(result.plan));
       showMessage("已记录本次回顾。", 2000);
@@ -280,7 +280,7 @@ export default class SiyuanReviewPlugin extends Plugin {
       showMessage("提交反馈失败。", 3000, "error");
       return false;
     } finally {
-      this.submittingFeedbackDocIds.delete(docId);
+      this.submittingFeedbackItemIds.delete(itemId);
       this.renderCurrentDock();
     }
   }
@@ -298,13 +298,20 @@ export default class SiyuanReviewPlugin extends Plugin {
       const data = store.getData();
       openReviewCenterDialog({
         date: toDateKey(),
-        docs: buildReviewCenterDocs(candidates, data.docs),
+        items: candidates,
         todayPlan: data.dailyPlans[toDateKey()],
-        onOpenDoc: async (docId) => {
-          await openDocument(this.app, docId);
+        onRefresh: async () => {
+          return this.refreshReviewCenterItems();
         },
-        onOpenCloze: async (docId) => {
-          await this.openCloze(docId);
+        onOpenItem: async (itemId) => {
+          const item = store.getData().items[itemId];
+          if (!item) {
+            throw new Error(`Review item ${itemId} does not exist.`);
+          }
+          await openReviewItem(this.app, item.itemId);
+        },
+        onOpenCloze: async (itemId) => {
+          await this.openCloze(itemId);
         },
         onOpenSettings: () => {
           void this.openSettings();
@@ -348,23 +355,48 @@ export default class SiyuanReviewPlugin extends Plugin {
     const data = store.getData();
     const date = toDateKey();
     try {
-      const candidates = mergeCandidatesWithStoredState(await scanReviewCandidates(settings), data.docs);
-      store.upsertDocs(candidates);
-      store.upsertDocs(markMissingDocs(data.docs, candidates.map((candidate) => candidate.docId), date));
+      const candidates = mergeCandidatesWithStoredState(await scanReviewCandidates(settings), data.items);
+      store.upsertItems(candidates);
+      store.upsertItems(markMissingItems(data.items, candidates.map((candidate) => candidate.itemId), date));
       await store.save();
       return candidates;
     } catch (error) {
       console.warn("[siyuan-review] failed to scan review pool, using stored data", error);
       showMessage("回顾池扫描失败，已展示本地已有数据。", 3000, "error");
-      return Object.values(data.docs).map((doc) => ({
-        ...doc,
-        exists: !doc.missingSince,
-      }));
+      return Object.values(data.items)
+        .filter((item) => !item.missingSince)
+        .map((item) => ({
+          ...item,
+          exists: true,
+        }));
     }
   }
 
-  private async enhanceQuestions(docId: string): Promise<void> {
-    if (this.enhancingQuestionDocIds.has(docId)) {
+  private async refreshReviewCenterItems(): Promise<{ items: ReviewCandidate[]; todayPlan?: DailyPlan }> {
+    const settings = (await this.settingsStore?.load()) ?? DEFAULT_SETTINGS;
+    const store = this.reviewStore;
+    if (!store) {
+      return { items: [] };
+    }
+
+    const candidates = await this.getReviewCenterCandidates(settings);
+    const data = store.getData();
+    const date = toDateKey();
+    const existingPlan = data.dailyPlans[date];
+    if (existingPlan) {
+      store.setDailyPlan(syncDailyPlanAvailability(existingPlan, candidates));
+      await store.save();
+      this.topbar?.setBadge(getIncompleteCount(store.getData().dailyPlans[date]));
+      this.renderCurrentDock();
+    }
+    return {
+      items: candidates,
+      todayPlan: store.getData().dailyPlans[date],
+    };
+  }
+
+  private async enhanceQuestions(itemId: string): Promise<void> {
+    if (this.enhancingQuestionItemIds.has(itemId)) {
       showMessage("问题正在生成中，请稍候。", 2000);
       return;
     }
@@ -376,9 +408,9 @@ export default class SiyuanReviewPlugin extends Plugin {
     }
 
     const data = store.getData();
-    const doc = data.docs[docId];
+    const item = data.items[itemId];
     const plan = data.dailyPlans[toDateKey()];
-    if (!doc || !plan) {
+    if (!item || !plan) {
       return;
     }
 
@@ -387,37 +419,37 @@ export default class SiyuanReviewPlugin extends Plugin {
       return;
     }
 
-    this.enhancingQuestionDocIds.add(docId);
+    this.enhancingQuestionItemIds.add(itemId);
     this.renderCurrentDock();
 
     try {
-      const content = await getDocumentMarkdown(docId);
+      const content = await getBlockMarkdown(item.itemId);
       const questionCache = await getReviewQuestions({
-        doc,
+        item,
         content,
         ai: settings.ai,
         generateAiQuestions,
       });
 
-      store.upsertDocs([{ ...doc, questionCache }]);
+      store.upsertItems([{ ...item, questionCache }]);
       await store.save();
 
-      if (this.selectedDocId === docId) {
+      if (this.selectedItemId === itemId) {
         this.renderCurrentDock();
       }
     } catch (error) {
       console.warn("[siyuan-review] failed to enhance questions", error);
-      if (this.selectedDocId === docId) {
+      if (this.selectedItemId === itemId) {
         showMessage("问题生成失败，已保留当前问题。", 3000, "error");
       }
     } finally {
-      this.enhancingQuestionDocIds.delete(docId);
+      this.enhancingQuestionItemIds.delete(itemId);
       this.renderCurrentDock();
     }
   }
 
-  private async openCloze(docId: string): Promise<void> {
-    if (this.openingClozeDocIds.has(docId)) {
+  private async openCloze(itemId: string): Promise<void> {
+    if (this.openingClozeItemIds.has(itemId)) {
       showMessage("检验界面正在打开中，请稍候。", 2000);
       return;
     }
@@ -427,44 +459,44 @@ export default class SiyuanReviewPlugin extends Plugin {
       return;
     }
 
-    const doc = store.getData().docs[docId];
-    if (!doc) {
-      showMessage("无法打开检验，文档状态不存在。", 3000, "error");
+    const item = store.getData().items[itemId];
+    if (!item) {
+      showMessage("无法打开检验，回顾项状态不存在。", 3000, "error");
       return;
     }
 
-    this.openingClozeDocIds.add(docId);
+    this.openingClozeItemIds.add(itemId);
     this.renderCurrentDock();
 
     try {
       openClozeDialog({
-        docTitle: doc.title,
-        markdown: await getDocumentMarkdown(docId),
+        docTitle: item.title,
+        markdown: await getBlockMarkdown(item.itemId),
         onFinish: async () => {
-          await this.saveClozeCheck(docId);
+          await this.saveClozeCheck(itemId);
         },
       });
     } catch (error) {
       console.error("[siyuan-review] failed to open cloze check", error);
       showMessage("打开检验失败。", 3000, "error");
     } finally {
-      this.openingClozeDocIds.delete(docId);
+      this.openingClozeItemIds.delete(itemId);
       this.renderCurrentDock();
     }
   }
 
-  private async saveClozeCheck(docId: string): Promise<void> {
+  private async saveClozeCheck(itemId: string): Promise<void> {
     const store = this.reviewStore;
     if (!store) {
       return;
     }
 
-    const doc = store.getData().docs[docId];
-    if (!doc) {
-      throw new Error(`Document ${docId} does not exist.`);
+    const item = store.getData().items[itemId];
+    if (!item) {
+      throw new Error(`Review item ${itemId} does not exist.`);
     }
 
-    store.upsertDocs([recordClozeCheck(doc)]);
+    store.upsertItems([recordClozeCheck(item)]);
     await store.save();
     this.renderCurrentDock();
   }
@@ -482,23 +514,23 @@ export default class SiyuanReviewPlugin extends Plugin {
     const data = store.getData();
     this.dock?.render({
       plan: data.dailyPlans[toDateKey()],
-      docs: data.docs,
+      items: data.items,
       history: data.history,
       processingFeedbackDrafts: Object.fromEntries(this.processingFeedbackDrafts),
-      selectedDocId: this.selectedDocId,
-      generatingQuestionDocIds: Array.from(this.enhancingQuestionDocIds),
-      submittingFeedbackDocIds: Array.from(this.submittingFeedbackDocIds),
-      openingClozeDocIds: Array.from(this.openingClozeDocIds),
+      selectedItemId: this.selectedItemId,
+      generatingQuestionItemIds: Array.from(this.enhancingQuestionItemIds),
+      submittingFeedbackItemIds: Array.from(this.submittingFeedbackItemIds),
+      openingClozeItemIds: Array.from(this.openingClozeItemIds),
     });
   }
 
-  private async pruneStoredData(settings = DEFAULT_SETTINGS, protectedDocIds: string[] = []): Promise<void> {
+  private async pruneStoredData(settings = DEFAULT_SETTINGS, protectedItemIds: string[] = []): Promise<void> {
     const store = this.reviewStore;
     if (!store) {
       return;
     }
 
-    const result = pruneReviewData(store.getData(), settings.dataRetention, toDateKey(), protectedDocIds);
+    const result = pruneReviewData(store.getData(), settings.dataRetention, toDateKey(), protectedItemIds);
     if (!result.changed) {
       return;
     }
@@ -508,7 +540,7 @@ export default class SiyuanReviewPlugin extends Plugin {
     console.info("[siyuan-review] pruned review data", {
       removedDailyPlans: result.removedDailyPlans,
       removedHistoryEvents: result.removedHistoryEvents,
-      removedDocs: result.removedDocs,
+      removedItems: result.removedItems,
     });
   }
 
@@ -528,7 +560,7 @@ export default class SiyuanReviewPlugin extends Plugin {
     if (this.unloaded) {
       return;
     }
-    showMessage(`今天有 ${total} 篇文档待回顾。`, 3000);
+    showMessage(`今天有 ${total} 个回顾项待回顾。`, 3000);
   }
 }
 
@@ -541,19 +573,4 @@ function createPluginPersistAdapter(plugin: Plugin): PersistAdapter {
       await plugin.saveData(name, data);
     },
   };
-}
-
-function buildReviewCenterDocs(
-  candidates: ReviewCandidate[],
-  storedDocs: Record<string, ReviewDocState>,
-): ReviewCandidate[] {
-  const candidateIds = new Set(candidates.map((candidate) => candidate.docId));
-  const missingStoredDocs = Object.values(storedDocs)
-    .filter((doc) => !candidateIds.has(doc.docId))
-    .map<ReviewCandidate>((doc) => ({
-      ...doc,
-      exists: false,
-    }));
-
-  return [...candidates, ...missingStoredDocs];
 }

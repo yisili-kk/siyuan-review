@@ -1,15 +1,16 @@
 import { Dialog, showMessage } from "siyuan";
 import { isDue } from "../utils/date";
-import type { DailyPlan, ReviewCandidate, ReviewDocState } from "../types/review";
+import type { DailyPlan, ReviewCandidate, ReviewItem } from "../types/review";
 
 const PAGE_SIZE = 10;
 
 export function openReviewCenterDialog(input: {
   date: string;
-  docs: ReviewCandidate[];
+  items: ReviewCandidate[];
   todayPlan?: DailyPlan;
-  onOpenDoc(docId: string): Promise<void>;
-  onOpenCloze(docId: string): Promise<void>;
+  onRefresh(): Promise<{ items: ReviewCandidate[]; todayPlan?: DailyPlan }>;
+  onOpenItem(itemId: string): Promise<void>;
+  onOpenCloze(itemId: string): Promise<void>;
   onOpenSettings(): void;
 }): void {
   const dialog = new Dialog({
@@ -32,44 +33,49 @@ export function openReviewCenterDialog(input: {
 
 function buildReviewCenterHtml(input: {
   date: string;
-  docs: ReviewCandidate[];
+  items: ReviewCandidate[];
   todayPlan?: DailyPlan;
 }): string {
-  const stats = getPoolStats(input.docs, input.todayPlan, input.date);
+  const stats = getPoolStats(input.items, input.todayPlan, input.date);
+  const hasRows = input.items.some((item) => item.exists);
   return `
 <div class="siyuan-review-center">
   <header class="siyuan-review-center__head">
     <div>
       <strong>回顾池</strong>
-      <p>${stats.total} 篇文档 · 今日 ${stats.today} 篇 · 已到期 ${stats.due} 篇</p>
+      <p data-role="pool-stats">${stats.total} 个回顾项 · 今日 ${stats.today} 个 · 已到期 ${stats.due} 个</p>
     </div>
-    <button class="b3-button b3-button--outline" type="button" data-action="open-center-settings">设置</button>
+    <div class="siyuan-review-center__head-actions">
+      <button class="b3-button b3-button--outline" type="button" data-action="refresh-pool">刷新</button>
+      <button class="b3-button b3-button--outline" type="button" data-action="open-center-settings">设置</button>
+    </div>
   </header>
 
   <div class="siyuan-review-center__body">
     <section class="siyuan-review-center-panel">
       <div class="siyuan-review-pool-toolbar">
         <label class="siyuan-review-pool-search">
-          <input class="b3-text-field" type="search" data-action="pool-search" placeholder="搜索文档标题">
+          <input class="b3-text-field" type="search" data-action="pool-search" placeholder="搜索标题或来源文档">
         </label>
         <label class="siyuan-review-pool-filter">
           <select class="b3-select" data-action="pool-filter">
             <option value="all">全部</option>
+            <option value="document">文档</option>
+            <option value="block">片段</option>
             <option value="today">今日待回顾</option>
             <option value="due">已到期</option>
             <option value="neverReviewed">从未回顾</option>
             <option value="needsSupplement">需要补充</option>
             <option value="needsRefactor">需要重构</option>
-            <option value="missing">暂不在池中</option>
           </select>
         </label>
       </div>
       <div class="siyuan-review-pool-table">
         <div class="siyuan-review-pool-table__body">
-          ${renderPoolTable(input.docs, input.todayPlan, input.date)}
-          ${input.docs.length > 0 ? '<p class="siyuan-review-empty" data-role="pool-filter-empty" hidden>当前筛选下没有文档。</p>' : ""}
+          ${renderPoolTable(input.items, input.todayPlan, input.date)}
+          ${hasRows ? '<p class="siyuan-review-empty" data-role="pool-filter-empty" hidden>当前筛选下没有回顾项。</p>' : ""}
         </div>
-        <div class="siyuan-review-pool-pagination" data-role="pool-pagination" ${input.docs.length === 0 ? "hidden" : ""}>
+        <div class="siyuan-review-pool-pagination" data-role="pool-pagination" ${hasRows ? "" : "hidden"}>
           <span data-role="page-info">第 1 / 1 页</span>
           <div>
             <button class="b3-button b3-button--outline" type="button" data-action="prev-page">上一页</button>
@@ -86,32 +92,41 @@ function buildReviewCenterHtml(input: {
 </div>`;
 }
 
-function renderPoolTable(docs: ReviewCandidate[], todayPlan: DailyPlan | undefined, date: string): string {
-  if (docs.length === 0) {
-    return '<p class="siyuan-review-empty">回顾池里还没有文档。</p>';
+function renderPoolTable(items: ReviewCandidate[], todayPlan: DailyPlan | undefined, date: string): string {
+  const visibleItems = items.filter((item) => item.exists);
+  if (visibleItems.length === 0) {
+    return '<p class="siyuan-review-empty">回顾池里还没有回顾项。</p>';
   }
 
-  const todayDocIds = new Set(todayPlan?.items.map((item) => item.docId) ?? []);
-  const rows = docs
+  const todayItemIds = new Set(todayPlan?.items.map((item) => item.itemId) ?? []);
+  const rows = visibleItems
     .slice()
-    .sort((a, b) => sortPoolDocs(a, b, date))
-    .map((doc) => {
-      const categories = getPoolCategories(doc, todayDocIds, date);
-      const status = getPoolStatus(doc, todayDocIds, date);
+    .sort((a, b) => sortPoolItems(a, b, date))
+    .map((item) => {
+      const categories = getPoolCategories(item, todayItemIds, date);
+      const status = getPoolStatus(item, todayItemIds, date);
+      const typeLabel = item.itemType === "document" ? "文档" : "片段";
+      const sourceLine =
+        item.itemType === "block"
+          ? `<small class="siyuan-review-pool-source">来源文档：${escapeHtml(item.sourceTitle)}</small>`
+          : "";
+      const searchableText = `${item.title} ${item.sourceTitle}`.toLocaleLowerCase();
       return `
-<tr data-categories="${categories.join(" ")}" data-title="${escapeHtml(doc.title.toLocaleLowerCase())}" data-doc-row>
+<tr data-categories="${categories.join(" ")}" data-title="${escapeHtml(searchableText)}" data-pool-row>
   <td data-role="row-index"></td>
+  <td>${escapeHtml(typeLabel)}</td>
   <td>
-    <strong>${escapeHtml(doc.title)}</strong>
+    <strong>${escapeHtml(item.title)}</strong>
+    ${sourceLine}
   </td>
   <td>${status}</td>
-  <td>${doc.lastReviewedAt ? escapeHtml(doc.lastReviewedAt) : "从未"}</td>
-  <td>${doc.nextReviewAt ? escapeHtml(doc.nextReviewAt) : "-"}</td>
-  <td>${doc.clozeCheckCount ?? 0}</td>
+  <td>${item.lastReviewedAt ? escapeHtml(item.lastReviewedAt) : "从未"}</td>
+  <td>${item.nextReviewAt ? escapeHtml(item.nextReviewAt) : "-"}</td>
+  <td>${item.clozeCheckCount ?? 0}</td>
   <td>
     <div class="siyuan-review-pool-actions">
-      <button class="b3-button b3-button--outline" type="button" data-doc-id="${escapeHtml(doc.docId)}">打开</button>
-      <button class="b3-button b3-button--outline" type="button" data-cloze-doc-id="${escapeHtml(doc.docId)}">检验</button>
+      <button class="b3-button b3-button--outline" type="button" data-item-id="${escapeHtml(item.itemId)}">打开</button>
+      <button class="b3-button b3-button--outline" type="button" data-cloze-item-id="${escapeHtml(item.itemId)}">检验</button>
     </div>
   </td>
 </tr>`;
@@ -123,7 +138,8 @@ function renderPoolTable(docs: ReviewCandidate[], todayPlan: DailyPlan | undefin
   <thead>
     <tr>
       <th>序号</th>
-      <th>文档</th>
+      <th>类型</th>
+      <th>内容</th>
       <th>状态</th>
       <th>上次回顾</th>
       <th>下次回顾</th>
@@ -149,48 +165,115 @@ function bindPoolFilters(root: HTMLElement): void {
 function bindPoolActions(
   root: HTMLElement,
   input: {
-    onOpenDoc(docId: string): Promise<void>;
-    onOpenCloze(docId: string): Promise<void>;
+    date: string;
+    todayPlan?: DailyPlan;
+    onRefresh(): Promise<{ items: ReviewCandidate[]; todayPlan?: DailyPlan }>;
+    onOpenItem(itemId: string): Promise<void>;
+    onOpenCloze(itemId: string): Promise<void>;
   },
   dialog: Dialog,
 ): void {
-  root.querySelectorAll<HTMLButtonElement>("[data-doc-id]").forEach((button) => {
+  root.querySelector<HTMLButtonElement>('[data-action="refresh-pool"]')?.addEventListener("click", (event) => {
+    const button = event.currentTarget as HTMLButtonElement | null;
+    if (!button || button.disabled) {
+      return;
+    }
+
+    button.disabled = true;
+    button.textContent = "刷新中...";
+    void input
+      .onRefresh()
+      .then((result) => {
+        input.todayPlan = result.todayPlan;
+        replacePoolTable(root, result.items, result.todayPlan, input.date);
+        updateStats(root, result.items, result.todayPlan, input.date);
+        bindPoolRowActions(root, input, dialog);
+        updatePagination(root);
+        showMessage("回顾池已刷新。", 2000);
+      })
+      .catch(() => {
+        showMessage("刷新回顾池失败。", 3000, "error");
+      })
+      .finally(() => {
+        button.disabled = false;
+        button.textContent = "刷新";
+      });
+  });
+
+  bindPoolRowActions(root, input, dialog);
+}
+
+function bindPoolRowActions(
+  root: HTMLElement,
+  input: {
+    onOpenItem(itemId: string): Promise<void>;
+    onOpenCloze(itemId: string): Promise<void>;
+  },
+  dialog: Dialog,
+): void {
+  root.querySelectorAll<HTMLButtonElement>("[data-item-id]").forEach((button) => {
     button.addEventListener("click", () => {
-      const docId = button.dataset.docId;
-      if (!docId || button.disabled) {
+      const itemId = button.dataset.itemId;
+      if (!itemId || button.disabled) {
         return;
       }
 
       button.disabled = true;
       button.textContent = "打开中...";
       void input
-        .onOpenDoc(docId)
+        .onOpenItem(itemId)
         .then(() => {
           dialog.destroy();
         })
         .catch(() => {
           button.disabled = false;
           button.textContent = "打开";
-          showMessage("打开文档失败。", 3000, "error");
+          showMessage("打开回顾项失败。", 3000, "error");
         });
     });
   });
 
-  root.querySelectorAll<HTMLButtonElement>("[data-cloze-doc-id]").forEach((button) => {
+  root.querySelectorAll<HTMLButtonElement>("[data-cloze-item-id]").forEach((button) => {
     button.addEventListener("click", () => {
-      const docId = button.dataset.clozeDocId;
-      if (!docId || button.disabled) {
+      const itemId = button.dataset.clozeItemId;
+      if (!itemId || button.disabled) {
         return;
       }
 
       button.disabled = true;
       button.textContent = "打开中...";
-      void input.onOpenCloze(docId).finally(() => {
+      void input.onOpenCloze(itemId).finally(() => {
         button.disabled = false;
         button.textContent = "检验";
       });
     });
   });
+}
+
+function replacePoolTable(root: HTMLElement, items: ReviewCandidate[], todayPlan: DailyPlan | undefined, date: string): void {
+  const tableBody = root.querySelector<HTMLElement>(".siyuan-review-pool-table__body");
+  if (!tableBody) {
+    return;
+  }
+
+  const hasRows = items.some((item) => item.exists);
+  tableBody.innerHTML = `
+    ${renderPoolTable(items, todayPlan, date)}
+    ${hasRows ? '<p class="siyuan-review-empty" data-role="pool-filter-empty" hidden>当前筛选下没有回顾项。</p>' : ""}
+  `;
+  const pagination = root.querySelector<HTMLElement>('[data-role="pool-pagination"]');
+  if (pagination) {
+    pagination.hidden = !hasRows;
+  }
+  root.dataset.page = "1";
+}
+
+function updateStats(root: HTMLElement, items: ReviewCandidate[], todayPlan: DailyPlan | undefined, date: string): void {
+  const stats = getPoolStats(items, todayPlan, date);
+  const statsNode = root.querySelector<HTMLElement>('[data-role="pool-stats"]');
+  if (statsNode) {
+    statsNode.textContent = `${stats.total} 个回顾项 · 今日 ${stats.today} 个 · 已到期 ${stats.due} 个`;
+  }
 }
 
 function bindPagination(root: HTMLElement): void {
@@ -225,7 +308,7 @@ function bindDialogActions(
 function updatePagination(root: HTMLElement): void {
   const filter = root.querySelector<HTMLSelectElement>('[data-action="pool-filter"]')?.value ?? "all";
   const keyword = normalizeSearchKeyword(root.querySelector<HTMLInputElement>('[data-action="pool-search"]')?.value ?? "");
-  const matchedRows = Array.from(root.querySelectorAll<HTMLTableRowElement>("[data-doc-row]")).filter((row) => {
+  const matchedRows = Array.from(root.querySelectorAll<HTMLTableRowElement>("[data-pool-row]")).filter((row) => {
     const categories = row.dataset.categories?.split(/\s+/) ?? [];
     const matchesCategory = filter === "all" || categories.includes(filter);
     const matchesKeyword = !keyword || (row.dataset.title ?? "").includes(keyword);
@@ -237,7 +320,7 @@ function updatePagination(root: HTMLElement): void {
 
   const start = (currentPage - 1) * PAGE_SIZE;
   const end = start + PAGE_SIZE;
-  root.querySelectorAll<HTMLTableRowElement>("[data-doc-row]").forEach((row) => {
+  root.querySelectorAll<HTMLTableRowElement>("[data-pool-row]").forEach((row) => {
     row.hidden = true;
   });
   matchedRows.forEach((row, index) => {
@@ -258,7 +341,7 @@ function updatePagination(root: HTMLElement): void {
   }
   const pageInfo = root.querySelector<HTMLElement>('[data-role="page-info"]');
   if (pageInfo) {
-    pageInfo.textContent = `第 ${currentPage} / ${totalPages} 页，共 ${matchedRows.length} 篇`;
+    pageInfo.textContent = `第 ${currentPage} / ${totalPages} 页，共 ${matchedRows.length} 个`;
   }
   const prevButton = root.querySelector<HTMLButtonElement>('[data-action="prev-page"]');
   const nextButton = root.querySelector<HTMLButtonElement>('[data-action="next-page"]');
@@ -279,20 +362,21 @@ function readCurrentPage(root: HTMLElement): number {
   return Number.isFinite(page) && page > 0 ? Math.trunc(page) : 1;
 }
 
-function getPoolStats(docs: ReviewCandidate[], todayPlan: DailyPlan | undefined, date: string): {
+function getPoolStats(items: ReviewCandidate[], todayPlan: DailyPlan | undefined, date: string): {
   total: number;
   today: number;
   due: number;
 } {
-  const todayDocIds = new Set(todayPlan?.items.map((item) => item.docId) ?? []);
+  const todayItemIds = new Set(todayPlan?.items.map((item) => item.itemId) ?? []);
+  const existingItems = items.filter((item) => item.exists);
   return {
-    total: docs.length,
-    today: todayDocIds.size,
-    due: docs.filter((doc) => doc.exists && isDue(doc.nextReviewAt, date)).length,
+    total: existingItems.length,
+    today: existingItems.filter((item) => todayItemIds.has(item.itemId)).length,
+    due: existingItems.filter((item) => isDue(item.nextReviewAt, date)).length,
   };
 }
 
-function sortPoolDocs(a: ReviewDocState, b: ReviewDocState, date: string): number {
+function sortPoolItems(a: ReviewItem, b: ReviewItem, date: string): number {
   const aDue = isDue(a.nextReviewAt, date) ? 0 : 1;
   const bDue = isDue(b.nextReviewAt, date) ? 0 : 1;
   if (aDue !== bDue) {
@@ -308,46 +392,40 @@ function sortPoolDocs(a: ReviewDocState, b: ReviewDocState, date: string): numbe
   return a.title.localeCompare(b.title);
 }
 
-function getPoolCategories(doc: ReviewCandidate, todayDocIds: Set<string>, date: string): string[] {
-  const categories = ["all"];
-  if (!doc.exists) {
-    return [...categories, "missing"];
-  }
-  if (todayDocIds.has(doc.docId)) {
+function getPoolCategories(item: ReviewCandidate, todayItemIds: Set<string>, date: string): string[] {
+  const categories = ["all", item.itemType];
+  if (todayItemIds.has(item.itemId)) {
     categories.push("today");
   }
-  if (isDue(doc.nextReviewAt, date)) {
+  if (isDue(item.nextReviewAt, date)) {
     categories.push("due");
   }
-  if (!doc.lastReviewedAt) {
+  if (!item.lastReviewedAt) {
     categories.push("neverReviewed");
   }
-  if (doc.status === "needsSupplement") {
+  if (item.status === "needsSupplement") {
     categories.push("needsSupplement");
   }
-  if (doc.status === "needsRefactor") {
+  if (item.status === "needsRefactor") {
     categories.push("needsRefactor");
   }
   return categories;
 }
 
-function getPoolStatus(doc: ReviewCandidate, todayDocIds: Set<string>, date: string): string {
-  if (!doc.exists) {
-    return '<span class="siyuan-review-pool-status siyuan-review-pool-status--muted">暂不在池中</span>';
-  }
-  if (todayDocIds.has(doc.docId)) {
+function getPoolStatus(item: ReviewCandidate, todayItemIds: Set<string>, date: string): string {
+  if (todayItemIds.has(item.itemId)) {
     return '<span class="siyuan-review-pool-status siyuan-review-pool-status--primary">今日待回顾</span>';
   }
-  if (doc.status === "needsSupplement") {
+  if (item.status === "needsSupplement") {
     return '<span class="siyuan-review-pool-status siyuan-review-pool-status--warning">需要补充</span>';
   }
-  if (doc.status === "needsRefactor") {
+  if (item.status === "needsRefactor") {
     return '<span class="siyuan-review-pool-status siyuan-review-pool-status--warning">需要重构</span>';
   }
-  if (isDue(doc.nextReviewAt, date)) {
+  if (isDue(item.nextReviewAt, date)) {
     return '<span class="siyuan-review-pool-status siyuan-review-pool-status--primary">已到期</span>';
   }
-  if (!doc.lastReviewedAt) {
+  if (!item.lastReviewedAt) {
     return '<span class="siyuan-review-pool-status">从未回顾</span>';
   }
   return '<span class="siyuan-review-pool-status siyuan-review-pool-status--muted">未到期</span>';

@@ -4,9 +4,9 @@ import { createChatCompletion } from "./openai-compatible-client";
 
 const MAX_QUESTION_LENGTH = 80;
 
-export const generateAiQuestions: AiQuestionGenerator = async ({ doc, content, settings }) => {
+export const generateAiQuestions: AiQuestionGenerator = async ({ item, content, settings }) => {
   const limitedContent = content.slice(0, settings.maxChars);
-  const prompt = buildQuestionPrompt(doc, limitedContent);
+  const prompt = buildQuestionPrompt(item, limitedContent);
   const result = await createChatCompletion(settings, prompt);
   return parseQuestionList(result);
 };

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { markMissingDocs, pruneReviewData } from "../src/storage/data-retention";
-import type { DailyPlan, ReviewData, ReviewDocState, ReviewEvent } from "../src/types/review";
+import { markMissingItems, pruneReviewData } from "../src/storage/data-retention";
+import type { DailyPlan, ReviewData, ReviewItem, ReviewEvent } from "../src/types/review";
 import type { DataRetentionSettings } from "../src/types/settings";
 
 const settings: DataRetentionSettings = {
@@ -38,20 +38,20 @@ describe("pruneReviewData", () => {
       "2026-07-27",
     );
 
-    expect(result.data.history.map((item) => item.docId)).toEqual(["b", "c", "d"]);
+    expect(result.data.history.map((item) => item.itemId)).toEqual(["b", "c", "d"]);
     expect(result.removedHistoryEvents).toBe(1);
   });
 
-  it("removes stale missing docs but keeps referenced and protected docs", () => {
+  it("removes stale missing items but keeps referenced and protected items", () => {
     const result = pruneReviewData(
       data({
-        docs: {
-          stale: doc("stale", { missingSince: "2026-01-01" }),
-          inPlan: doc("inPlan", { missingSince: "2026-01-01" }),
-          inHistory: doc("inHistory", { missingSince: "2026-01-01" }),
-          protectedDoc: doc("protectedDoc", { missingSince: "2026-01-01" }),
-          recent: doc("recent", { lastReviewedAt: "2026-07-01" }),
-          unknownAge: doc("unknownAge"),
+        items: {
+          stale: item("stale", { missingSince: "2026-01-01" }),
+          inPlan: item("inPlan", { missingSince: "2026-01-01" }),
+          inHistory: item("inHistory", { missingSince: "2026-01-01" }),
+          protectedDoc: item("protectedDoc", { missingSince: "2026-01-01" }),
+          recent: item("recent", { lastReviewedAt: "2026-07-01" }),
+          unknownAge: item("unknownAge"),
         },
         dailyPlans: {
           "2026-07-27": plan("2026-07-27", ["inPlan"]),
@@ -63,21 +63,21 @@ describe("pruneReviewData", () => {
       ["protectedDoc"],
     );
 
-    expect(Object.keys(result.data.docs).sort()).toEqual([
+    expect(Object.keys(result.data.items).sort()).toEqual([
       "inHistory",
       "inPlan",
       "protectedDoc",
       "recent",
       "unknownAge",
     ]);
-    expect(result.removedDocs).toBe(1);
+    expect(result.removedItems).toBe(1);
   });
 
-  it("does not prune docs that left the pool before their missing retention window ends", () => {
+  it("does not prune items that left the pool before their missing retention window ends", () => {
     const result = pruneReviewData(
       data({
-        docs: {
-          recentlyMissing: doc("recentlyMissing", {
+        items: {
+          recentlyMissing: item("recentlyMissing", {
             lastReviewedAt: "2026-01-01",
             missingSince: "2026-07-01",
           }),
@@ -87,22 +87,22 @@ describe("pruneReviewData", () => {
       "2026-07-27",
     );
 
-    expect(result.data.docs.recentlyMissing).toBeDefined();
-    expect(result.removedDocs).toBe(0);
+    expect(result.data.items.recentlyMissing).toBeDefined();
+    expect(result.removedItems).toBe(0);
   });
 
-  it("marks docs as missing once they leave the current candidate pool", () => {
-    const marked = markMissingDocs(
+  it("marks items as missing once they leave the current candidate pool", () => {
+    const marked = markMissingItems(
       {
-        active: doc("active"),
-        missing: doc("missing"),
-        alreadyMarked: doc("alreadyMarked", { missingSince: "2026-07-01" }),
+        active: item("active"),
+        missing: item("missing"),
+        alreadyMarked: item("alreadyMarked", { missingSince: "2026-07-01" }),
       },
       ["active"],
       "2026-07-27",
     );
 
-    expect(marked).toEqual([doc("missing", { missingSince: "2026-07-27" })]);
+    expect(marked).toEqual([item("missing", { missingSince: "2026-07-27" })]);
   });
 
   it("does nothing when retention is disabled", () => {
@@ -124,41 +124,46 @@ describe("pruneReviewData", () => {
 
 function data(overrides: Partial<ReviewData> = {}): ReviewData {
   return {
-    schemaVersion: 1,
-    docs: {},
+    schemaVersion: 2,
+    items: {},
     dailyPlans: {},
     history: [],
     ...overrides,
   };
 }
 
-function doc(docId: string, overrides: Partial<ReviewDocState> = {}): ReviewDocState {
+function item(itemId: string, overrides: Partial<ReviewItem> = {}): ReviewItem {
   return {
-    docId,
+    itemId,
+    itemType: "document",
+    docId: itemId,
     notebookId: "notebook",
-    title: docId,
-    path: `/${docId}`,
+    blockType: "d",
+    title: itemId,
+    sourceTitle: itemId,
+    path: `/${itemId}`,
+    contentPreview: itemId,
     ...overrides,
   };
 }
 
-function plan(date: string, docIds: string[]): DailyPlan {
+function plan(date: string, itemIds: string[]): DailyPlan {
   return {
     date,
     generatedAt: `${date}T08:00:00.000Z`,
     updatedAt: `${date}T08:00:00.000Z`,
-    items: docIds.map((docId) => ({
-      docId,
+    items: itemIds.map((itemId) => ({
+      itemId,
       reason: "neverReviewed",
       status: "pending",
     })),
   };
 }
 
-function event(docId: string): ReviewEvent {
+function event(itemId: string): ReviewEvent {
   return {
-    id: `${docId}-event`,
-    docId,
+    id: `${itemId}-event`,
+    itemId,
     feedback: "normal",
     completedAt: "2026-07-27T08:00:00.000Z",
     nextReviewAt: "2026-08-03",

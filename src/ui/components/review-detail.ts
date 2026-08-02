@@ -1,12 +1,14 @@
-import type { ReviewDocState, ReviewEvent, ReviewFeedback } from "../../types/review";
+import type { ReviewEvent, ReviewFeedback, ReviewItem } from "../../types/review";
 import { toDateKey } from "../../utils/date";
 
-export function renderReviewDetail(doc: ReviewDocState, options: { isOpeningCloze?: boolean } = {}): string {
+export function renderReviewDetail(item: ReviewItem, options: { isOpeningCloze?: boolean } = {}): string {
+  const source = item.itemType === "block" ? `<p>片段 · 来自 ${escapeHtml(item.sourceTitle)}</p>` : "<p>文档</p>";
   return `
 <section class="siyuan-review-detail">
   <div class="siyuan-review-detail__main">
-    <h3>${escapeHtml(doc.title)}</h3>
-    <p>已检验 ${doc.clozeCheckCount ?? 0} 次</p>
+    <h3>${escapeHtml(item.title)}</h3>
+    ${source}
+    <p>已检验 ${item.clozeCheckCount ?? 0} 次</p>
   </div>
   <button class="b3-button b3-button--outline" data-action="open-cloze" ${options.isOpeningCloze ? 'disabled aria-busy="true"' : ""}>${options.isOpeningCloze ? "打开中..." : "检验"}</button>
 </section>`;

@@ -1,4 +1,4 @@
-import type { DailyPlan, ReviewData, ReviewDocState, ReviewEvent } from "../types/review";
+import type { DailyPlan, ReviewData, ReviewEvent, ReviewItem } from "../types/review";
 import type { DataRetentionSettings } from "../types/settings";
 import { addDays } from "../utils/date";
 
@@ -7,19 +7,19 @@ export type DataRetentionResult = {
   changed: boolean;
   removedDailyPlans: number;
   removedHistoryEvents: number;
-  removedDocs: number;
+  removedItems: number;
 };
 
-export function markMissingDocs(
-  docs: Record<string, ReviewDocState>,
-  availableDocIds: Iterable<string>,
+export function markMissingItems(
+  items: Record<string, ReviewItem>,
+  availableItemIds: Iterable<string>,
   todayKey: string,
-): ReviewDocState[] {
-  const available = new Set(availableDocIds);
-  return Object.values(docs)
-    .filter((doc) => !available.has(doc.docId) && !doc.missingSince)
-    .map((doc) => ({
-      ...doc,
+): ReviewItem[] {
+  const available = new Set(availableItemIds);
+  return Object.values(items)
+    .filter((item) => !available.has(item.itemId) && !item.missingSince)
+    .map((item) => ({
+      ...item,
       missingSince: todayKey,
     }));
 }
@@ -28,7 +28,7 @@ export function pruneReviewData(
   data: ReviewData,
   settings: DataRetentionSettings,
   todayKey: string,
-  protectedDocIds: Iterable<string> = [],
+  protectedItemIds: Iterable<string> = [],
 ): DataRetentionResult {
   if (!settings.enabled) {
     return {
@@ -36,21 +36,21 @@ export function pruneReviewData(
       changed: false,
       removedDailyPlans: 0,
       removedHistoryEvents: 0,
-      removedDocs: 0,
+      removedItems: 0,
     };
   }
 
   const dailyPlans = pruneDailyPlans(data.dailyPlans, todayKey, settings.keepDailyPlansDays);
   const history = pruneHistory(data.history, settings.keepHistoryLimit);
-  const docs = pruneDocs({
-    docs: data.docs,
+  const items = pruneItems({
+    items: data.items,
     dailyPlans: dailyPlans.value,
     history: history.value,
     todayKey,
-    pruneMissingDocsDays: settings.pruneMissingDocsDays,
-    protectedDocIds,
+    pruneMissingItemsDays: settings.pruneMissingDocsDays,
+    protectedItemIds,
   });
-  const changed = dailyPlans.removed > 0 || history.removed > 0 || docs.removed > 0;
+  const changed = dailyPlans.removed > 0 || history.removed > 0 || items.removed > 0;
 
   return {
     data: changed
@@ -58,13 +58,13 @@ export function pruneReviewData(
           ...data,
           dailyPlans: dailyPlans.value,
           history: history.value,
-          docs: docs.value,
+          items: items.value,
         }
       : data,
     changed,
     removedDailyPlans: dailyPlans.removed,
     removedHistoryEvents: history.removed,
-    removedDocs: docs.removed,
+    removedItems: items.removed,
   };
 }
 
@@ -94,32 +94,32 @@ function pruneHistory(history: ReviewEvent[], keepLimit: number): { value: Revie
   };
 }
 
-function pruneDocs(input: {
-  docs: Record<string, ReviewDocState>;
+function pruneItems(input: {
+  items: Record<string, ReviewItem>;
   dailyPlans: Record<string, DailyPlan>;
   history: ReviewEvent[];
   todayKey: string;
-  pruneMissingDocsDays: number;
-  protectedDocIds: Iterable<string>;
-}): { value: Record<string, ReviewDocState>; removed: number } {
-  const referencedDocIds = new Set<string>(input.protectedDocIds);
+  pruneMissingItemsDays: number;
+  protectedItemIds: Iterable<string>;
+}): { value: Record<string, ReviewItem>; removed: number } {
+  const referencedItemIds = new Set<string>(input.protectedItemIds);
   for (const plan of Object.values(input.dailyPlans)) {
     for (const item of plan.items) {
-      referencedDocIds.add(item.docId);
+      referencedItemIds.add(item.itemId);
     }
   }
   for (const event of input.history) {
-    referencedDocIds.add(event.docId);
+    referencedItemIds.add(event.itemId);
   }
 
-  const cutoffKey = addDays(input.todayKey, -Math.max(Math.trunc(input.pruneMissingDocsDays), 0));
-  const entries = Object.entries(input.docs);
-  const kept = entries.filter(([docId, doc]) => {
-    if (referencedDocIds.has(docId)) {
+  const cutoffKey = addDays(input.todayKey, -Math.max(Math.trunc(input.pruneMissingItemsDays), 0));
+  const entries = Object.entries(input.items);
+  const kept = entries.filter(([itemId, item]) => {
+    if (referencedItemIds.has(itemId)) {
       return true;
     }
 
-    return doc.missingSince === undefined || doc.missingSince >= cutoffKey;
+    return item.missingSince === undefined || item.missingSince >= cutoffKey;
   });
 
   return {

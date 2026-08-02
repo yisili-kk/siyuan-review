@@ -1,30 +1,32 @@
-import type { DailyPlan, ReviewDocState } from "../../types/review";
+import type { DailyPlan, ReviewItem } from "../../types/review";
 
-export function renderTodayList(plan: DailyPlan, docs: Record<string, ReviewDocState>): string {
+export function renderTodayList(plan: DailyPlan, items: Record<string, ReviewItem>): string {
   return plan.items
-    .map((item) => {
-      const doc = docs[item.docId];
-      const title = doc?.title ?? "文档不可用";
-      const statusClass = `siyuan-review-item--${item.status}`;
-      const status = statusLabel(item.status);
-      const meta = metaLabel(item.status, item.reason, doc);
-      const disabled = item.status === "missing";
+    .map((planItem) => {
+      const item = items[planItem.itemId];
+      const title = item?.title ?? "回顾项不可用";
+      const statusClass = `siyuan-review-item--${planItem.status}`;
+      const status = statusLabel(planItem.status);
+      const meta = metaLabel(planItem.status, planItem.reason, item);
+      const source = item && item.itemType === "block" ? `来自：${item.sourceTitle}` : "";
+      const disabled = planItem.status === "missing";
 
       return `
-<button class="siyuan-review-item ${statusClass}" ${disabled ? "" : `data-doc-id="${escapeHtml(item.docId)}"`} ${disabled ? "disabled" : ""}>
+<button class="siyuan-review-item ${statusClass}" ${disabled ? "" : `data-item-id="${escapeHtml(planItem.itemId)}"`} ${disabled ? "disabled" : ""}>
   <span class="siyuan-review-item__top">
     <span class="siyuan-review-item__title">${escapeHtml(title)}</span>
     <span class="siyuan-review-item__badge">${escapeHtml(status)}</span>
   </span>
+  ${source ? `<span class="siyuan-review-item__source">${escapeHtml(source)}</span>` : ""}
   <span class="siyuan-review-item__reason">${escapeHtml(meta)}</span>
 </button>`;
     })
     .join("");
 }
 
-function metaLabel(status: string, reason: string, doc: ReviewDocState | undefined): string {
+function metaLabel(status: string, reason: string, item: ReviewItem | undefined): string {
   if (status === "done" || status === "skipped") {
-    return doc?.nextReviewAt ? `下次回顾 ${doc.nextReviewAt}` : "已记录本次回顾";
+    return item?.nextReviewAt ? `下次回顾 ${item.nextReviewAt}` : "已记录本次回顾";
   }
 
   if (status === "missing") {

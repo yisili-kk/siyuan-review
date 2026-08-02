@@ -7,7 +7,7 @@ export function createReviewExport(settings: ReviewSettings, data: ReviewData): 
     schemaVersion: DATA_SCHEMA_VERSION,
     exportedAt: new Date().toISOString(),
     settings,
-    docs: data.docs,
+    items: data.items,
     dailyPlans: data.dailyPlans,
     history: data.history,
   };
@@ -32,7 +32,7 @@ function isReviewExport(value: unknown): value is ReviewExport {
     record.schemaVersion === DATA_SCHEMA_VERSION &&
     typeof record.exportedAt === "string" &&
     typeof record.settings === "object" &&
-    typeof record.docs === "object" &&
+    typeof record.items === "object" &&
     typeof record.dailyPlans === "object" &&
     Array.isArray(record.history)
   );

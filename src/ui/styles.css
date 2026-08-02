@@ -203,6 +203,7 @@
 }
 
 .siyuan-review-item__meta,
+.siyuan-review-item__source,
 .siyuan-review-item__reason,
 .siyuan-review-detail p,
 .siyuan-review-empty {
@@ -212,6 +213,12 @@
 }
 
 .siyuan-review-item__meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.siyuan-review-item__source {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -288,12 +295,17 @@
 }
 
 .siyuan-review-detail h3 {
+  display: -webkit-box;
   overflow: hidden;
+  line-height: 1.45;
   text-overflow: ellipsis;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .siyuan-review-detail > .b3-button {
   flex: 0 0 auto;
+  margin-top: 2px;
 }
 
 .siyuan-review-questions {
@@ -744,6 +756,14 @@
   line-height: 1.5;
 }
 
+.siyuan-review-center__head-actions {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 .siyuan-review-center__body {
   flex: 1 1 auto;
   min-height: 0;
@@ -817,8 +837,9 @@
 
 .siyuan-review-pool-table table {
   width: 100%;
-  min-width: 780px;
+  min-width: 720px;
   border-collapse: collapse;
+  table-layout: fixed;
 }
 
 .siyuan-review-pool-table th,
@@ -848,16 +869,63 @@
   text-align: center;
 }
 
+.siyuan-review-pool-table th:nth-child(2),
 .siyuan-review-pool-table td:nth-child(2) {
-  min-width: 260px;
+  width: 56px;
+  color: var(--b3-theme-on-surface);
 }
 
-.siyuan-review-pool-table td:nth-child(2) strong {
+.siyuan-review-pool-table th:nth-child(3),
+.siyuan-review-pool-table td:nth-child(3) {
+  width: auto;
+}
+
+.siyuan-review-pool-table td:nth-child(3) strong {
   display: block;
   overflow: hidden;
-  max-width: 360px;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.siyuan-review-pool-source {
+  display: block;
+  overflow: hidden;
+  margin-top: 4px;
+  color: var(--b3-theme-on-surface);
+  font-size: 12px;
+  line-height: 1.4;
+  opacity: 0.78;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.siyuan-review-pool-table th:nth-child(4),
+.siyuan-review-pool-table td:nth-child(4) {
+  width: 118px;
+}
+
+.siyuan-review-pool-table th:nth-child(5),
+.siyuan-review-pool-table td:nth-child(5),
+.siyuan-review-pool-table th:nth-child(6),
+.siyuan-review-pool-table td:nth-child(6) {
+  width: 92px;
+}
+
+.siyuan-review-pool-table th:nth-child(7),
+.siyuan-review-pool-table td:nth-child(7) {
+  width: 56px;
+  text-align: center;
+}
+
+.siyuan-review-pool-table th:nth-child(8),
+.siyuan-review-pool-table td:nth-child(8) {
+  width: 132px;
+}
+
+.siyuan-review-pool-table td:nth-child(4),
+.siyuan-review-pool-table td:nth-child(5),
+.siyuan-review-pool-table td:nth-child(6) {
+  color: var(--b3-theme-on-surface);
 }
 
 .siyuan-review-pool-table tr:last-child td {
@@ -1101,6 +1169,11 @@
   .siyuan-review-center__footer {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .siyuan-review-center__head-actions {
+    justify-content: flex-start;
+    width: 100%;
   }
 
   .siyuan-review-center-panel {

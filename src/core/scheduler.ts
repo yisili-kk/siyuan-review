@@ -29,15 +29,15 @@ const MAX_LAPSE_PRIORITY = 200;
 export function buildDailyPlan(input: BuildDailyPlanInput): DailyPlan {
   const nowIso = input.nowIso ?? new Date().toISOString();
   const preservedItems = getPreservedItems(input.existingPlan);
-  const preservedDocIds = new Set(preservedItems.map((item) => item.docId));
+  const preservedItemIds = new Set(preservedItems.map((item) => item.itemId));
   const remainingSlots = Math.max(input.dailyLimit - preservedItems.length, 0);
 
   const selectedItems = rankCandidates(input.candidates, input.date)
     .filter(({ candidate }) => candidate.exists)
-    .filter(({ candidate }) => !preservedDocIds.has(candidate.docId))
+    .filter(({ candidate }) => !preservedItemIds.has(candidate.itemId))
     .slice(0, remainingSlots)
     .map<DailyPlanItem>(({ candidate, reason }) => ({
-      docId: candidate.docId,
+      itemId: candidate.itemId,
       reason,
       status: "pending",
     }));
@@ -69,11 +69,11 @@ export function syncDailyPlanAvailability(
   candidates: ReviewCandidate[],
   nowIso = new Date().toISOString(),
 ): DailyPlan {
-  const availableDocIds = new Set(candidates.filter((candidate) => candidate.exists).map((candidate) => candidate.docId));
+  const availableItemIds = new Set(candidates.filter((candidate) => candidate.exists).map((candidate) => candidate.itemId));
   let changed = false;
 
   const items = plan.items.map((item) => {
-    const nextStatus = getAvailabilitySyncedStatus(item.status, availableDocIds.has(item.docId));
+    const nextStatus = getAvailabilitySyncedStatus(item.status, availableItemIds.has(item.itemId));
     if (nextStatus === item.status) {
       return item;
     }

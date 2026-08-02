@@ -1,8 +1,8 @@
 import type {
   DailyPlan,
-  ReviewDocState,
   ReviewEvent,
   ReviewFeedback,
+  ReviewItem,
   StartReviewResult,
 } from "../types/review";
 import type { ReviewIntervals, ReviewSchedulingSettings } from "../types/settings";
@@ -10,14 +10,14 @@ import { addDays, secondsBetween, toDateKey } from "../utils/date";
 import { createReviewEventId } from "../utils/id";
 import { calculateNextInterval } from "./memory-interval";
 
-export function startReview(plan: DailyPlan, docId: string, nowIso = new Date().toISOString()): StartReviewResult {
-  const item = plan.items.find((planItem) => planItem.docId === docId);
+export function startReview(plan: DailyPlan, itemId: string, nowIso = new Date().toISOString()): StartReviewResult {
+  const item = plan.items.find((planItem) => planItem.itemId === itemId);
   if (!item) {
-    throw new Error(`Document ${docId} is not in today's review plan.`);
+    throw new Error(`Review item ${itemId} is not in today's review plan.`);
   }
 
   if (item.status === "done" || item.status === "skipped" || item.status === "missing") {
-    throw new Error(`Document ${docId} cannot be started from status ${item.status}.`);
+    throw new Error(`Review item ${itemId} cannot be started from status ${item.status}.`);
   }
 
   item.status = "reviewing";
@@ -28,72 +28,72 @@ export function startReview(plan: DailyPlan, docId: string, nowIso = new Date().
 }
 
 export function completeReview(input: {
-  doc: ReviewDocState;
+  item: ReviewItem;
   plan: DailyPlan;
   feedback: ReviewFeedback;
   intervals: ReviewIntervals;
   scheduling?: ReviewSchedulingSettings;
   note?: string;
   completedAt?: string;
-}): { doc: ReviewDocState; plan: DailyPlan; event: ReviewEvent } {
+}): { item: ReviewItem; plan: DailyPlan; event: ReviewEvent } {
   const completedAt = input.completedAt ?? new Date().toISOString();
   const completedDate = toDateKey(new Date(completedAt));
-  const item = input.plan.items.find((planItem) => planItem.docId === input.doc.docId);
+  const planItem = input.plan.items.find((item) => item.itemId === input.item.itemId);
   const note = input.note?.trim();
 
-  if (!item) {
-    throw new Error(`Document ${input.doc.docId} is not in today's review plan.`);
+  if (!planItem) {
+    throw new Error(`Review item ${input.item.itemId} is not in today's review plan.`);
   }
 
-  if (item.status === "done" || item.status === "skipped" || item.status === "missing") {
-    throw new Error(`Document ${input.doc.docId} cannot be completed from status ${item.status}.`);
+  if (planItem.status === "done" || planItem.status === "skipped" || planItem.status === "missing") {
+    throw new Error(`Review item ${input.item.itemId} cannot be completed from status ${planItem.status}.`);
   }
 
   const nextInterval = calculateNextInterval({
-    doc: input.doc,
+    item: input.item,
     feedback: input.feedback,
     intervals: input.intervals,
     scheduling: input.scheduling,
   });
   const nextReviewAt = addDays(completedDate, nextInterval.intervalDays);
-  const durationSeconds = secondsBetween(item.startedAt, completedAt);
+  const durationSeconds = secondsBetween(planItem.startedAt, completedAt);
 
-  item.status = input.feedback === "skipped" ? "skipped" : "done";
-  item.completedAt = completedAt;
+  planItem.status = input.feedback === "skipped" ? "skipped" : "done";
+  planItem.completedAt = completedAt;
   input.plan.updatedAt = completedAt;
 
-  const doc = {
-    ...input.doc,
+  const item = {
+    ...input.item,
     lastReviewedAt: completedDate,
     nextReviewAt,
-    status: nextStatus(input.feedback, input.doc.status),
-    priorityBoost: nextPriorityBoost(input.feedback, input.doc.priorityBoost),
+    status: nextStatus(input.feedback, input.item.status),
+    priorityBoost: nextPriorityBoost(input.feedback, input.item.priorityBoost),
     ...nextInterval.memoryState,
   };
 
   const event: ReviewEvent = {
-    id: createReviewEventId(input.doc.docId, completedAt),
-    docId: input.doc.docId,
+    id: createReviewEventId(input.item.itemId, completedAt),
+    itemId: input.item.itemId,
     feedback: input.feedback,
     note: note || undefined,
-    startedAt: item.startedAt,
+    startedAt: planItem.startedAt,
     completedAt,
     durationSeconds,
     nextReviewAt,
     intervalDays: nextInterval.intervalDays,
   };
 
-  return { doc, plan: input.plan, event };
+  return { item, plan: input.plan, event };
 }
 
-export function recordClozeCheck(doc: ReviewDocState): ReviewDocState {
+export function recordClozeCheck(item: ReviewItem): ReviewItem {
   return {
-    ...doc,
-    clozeCheckCount: (doc.clozeCheckCount ?? 0) + 1,
+    ...item,
+    clozeCheckCount: (item.clozeCheckCount ?? 0) + 1,
   };
 }
 
-function nextStatus(feedback: ReviewFeedback, current: ReviewDocState["status"]): ReviewDocState["status"] {
+function nextStatus(feedback: ReviewFeedback, current: ReviewItem["status"]): ReviewItem["status"] {
   if (feedback === "needsSupplement") {
     return "needsSupplement";
   }

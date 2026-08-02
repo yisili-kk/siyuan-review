@@ -1,5 +1,5 @@
 import { showMessage, type Custom, type MobileCustom, type Plugin } from "siyuan";
-import type { DailyPlan, ReviewDocState, ReviewEvent, ReviewFeedback } from "../types/review";
+import type { DailyPlan, ReviewEvent, ReviewFeedback, ReviewItem } from "../types/review";
 import { getTemplateQuestions } from "../core/question-service";
 import { renderFeedbackButtons } from "./components/feedback-buttons";
 import { renderQuestionPanel } from "./components/question-panel";
@@ -25,25 +25,25 @@ export type ProcessingFeedbackDraft = {
 
 export type DockSnapshot = {
   plan?: DailyPlan;
-  docs: Record<string, ReviewDocState>;
+  items: Record<string, ReviewItem>;
   history?: ReviewEvent[];
   processingFeedbackDrafts?: Record<string, ProcessingFeedbackDraft>;
-  selectedDocId?: string;
-  generatingQuestionDocIds?: string[];
-  submittingFeedbackDocIds?: string[];
-  openingClozeDocIds?: string[];
+  selectedItemId?: string;
+  generatingQuestionItemIds?: string[];
+  submittingFeedbackItemIds?: string[];
+  openingClozeItemIds?: string[];
 };
 
 export type DockActions = {
   onRefresh(): Promise<void>;
   onRegenerate(): Promise<void>;
-  onRegenerateQuestions(docId: string): Promise<void>;
-  onOpenCloze(docId: string): Promise<void>;
-  onSelectDoc(docId: string): Promise<void>;
-  onFeedback(docId: string, feedback: ReviewFeedback, note?: string): Promise<boolean>;
-  onOpenProcessingFeedback(docId: string): void;
-  onCancelProcessingFeedback(docId: string): void;
-  onUpdateProcessingFeedbackDraft(docId: string, draft: ProcessingFeedbackDraft): void;
+  onRegenerateQuestions(itemId: string): Promise<void>;
+  onOpenCloze(itemId: string): Promise<void>;
+  onSelectItem(itemId: string): Promise<void>;
+  onFeedback(itemId: string, feedback: ReviewFeedback, note?: string): Promise<boolean>;
+  onOpenProcessingFeedback(itemId: string): void;
+  onCancelProcessingFeedback(itemId: string): void;
+  onUpdateProcessingFeedbackDraft(itemId: string, draft: ProcessingFeedbackDraft): void;
   onOpenSettings(): void;
   onBack(): void;
 };
@@ -56,7 +56,7 @@ export type DockController = {
 
 export function createDockController(plugin: Plugin, actions: DockActions): DockController {
   let root: HTMLElement | undefined;
-  let snapshot: DockSnapshot = { docs: {} };
+  let snapshot: DockSnapshot = { items: {} };
 
   function render(nextSnapshot: DockSnapshot = snapshot): void {
     snapshot = nextSnapshot;
@@ -112,20 +112,22 @@ function buildDockHtml(snapshot: DockSnapshot): string {
   const completed = plan?.items.filter((item) => item.status === "done" || item.status === "skipped").length ?? 0;
   const total = plan?.items.length ?? 0;
   const pending = getPendingReviewCount(snapshot);
-  const selectedDoc = snapshot.selectedDocId ? snapshot.docs[snapshot.selectedDocId] : undefined;
-  const selectedItem = selectedDoc ? plan?.items.find((item) => item.docId === selectedDoc.docId) : undefined;
-  const terminalStatus = isTerminalItemStatus(selectedItem?.status) ? selectedItem.status : undefined;
-  const isGeneratingQuestions = selectedDoc
-    ? (snapshot.generatingQuestionDocIds ?? []).includes(selectedDoc.docId)
+  const selectedReviewItem = snapshot.selectedItemId ? snapshot.items[snapshot.selectedItemId] : undefined;
+  const selectedPlanItem = selectedReviewItem
+    ? plan?.items.find((item) => item.itemId === selectedReviewItem.itemId)
+    : undefined;
+  const terminalStatus = isTerminalItemStatus(selectedPlanItem?.status) ? selectedPlanItem.status : undefined;
+  const isGeneratingQuestions = selectedReviewItem
+    ? (snapshot.generatingQuestionItemIds ?? []).includes(selectedReviewItem.itemId)
     : false;
-  const isSubmittingFeedback = selectedDoc
-    ? (snapshot.submittingFeedbackDocIds ?? []).includes(selectedDoc.docId)
+  const isSubmittingFeedback = selectedReviewItem
+    ? (snapshot.submittingFeedbackItemIds ?? []).includes(selectedReviewItem.itemId)
     : false;
-  const isOpeningCloze = selectedDoc
-    ? (snapshot.openingClozeDocIds ?? []).includes(selectedDoc.docId)
+  const isOpeningCloze = selectedReviewItem
+    ? (snapshot.openingClozeItemIds ?? []).includes(selectedReviewItem.itemId)
     : false;
-  const recentHistory = selectedDoc ? getRecentHistory(snapshot, selectedDoc.docId) : [];
-  const processingDraft = selectedDoc ? snapshot.processingFeedbackDrafts?.[selectedDoc.docId] : undefined;
+  const recentHistory = selectedReviewItem ? getRecentHistory(snapshot, selectedReviewItem.itemId) : [];
+  const processingDraft = selectedReviewItem ? snapshot.processingFeedbackDrafts?.[selectedReviewItem.itemId] : undefined;
 
   if (!plan) {
     return `
@@ -145,24 +147,24 @@ function buildDockHtml(snapshot: DockSnapshot): string {
 </div>`;
   }
 
-  if (selectedDoc) {
+  if (selectedReviewItem) {
     return `
 <div class="siyuan-review-panel">
   <header class="siyuan-review-header">
     <button class="b3-button b3-button--text" data-action="back">返回</button>
     <span class="siyuan-review-progress">${completed} / ${total}</span>
   </header>
-  ${renderReviewDetail(selectedDoc, { isOpeningCloze })}
+  ${renderReviewDetail(selectedReviewItem, { isOpeningCloze })}
   <section class="siyuan-review-section">
     <div class="siyuan-review-section__head">
       <h3>回顾问题</h3>
       ${renderQuestionActions(isGeneratingQuestions)}
     </div>
-    ${renderQuestionPanel(selectedDoc.questionCache?.questions ?? getTemplateQuestions())}
+    ${renderQuestionPanel(getQuestionsForDisplay(selectedReviewItem))}
   </section>
   ${
     terminalStatus
-      ? `${renderCompletedReviewSummary(terminalStatus, selectedDoc)}${renderRecentHistory(recentHistory)}`
+      ? `${renderCompletedReviewSummary(terminalStatus, selectedReviewItem)}${renderRecentHistory(recentHistory)}`
       : `<section class="siyuan-review-section">
           <h3>本次反馈</h3>
           <div class="siyuan-review-feedback">
@@ -179,7 +181,7 @@ function buildDockHtml(snapshot: DockSnapshot): string {
   <header class="siyuan-review-header">
     <div>
       <h2>今日回顾</h2>
-      <p>${pending > 0 ? `还有 ${pending} 篇待处理` : "今天的回顾已经完成"}</p>
+      <p>${pending > 0 ? `还有 ${pending} 个待处理` : "今天的回顾已经完成"}</p>
     </div>
     <span class="siyuan-review-progress">${completed} / ${total}</span>
   </header>
@@ -188,7 +190,7 @@ function buildDockHtml(snapshot: DockSnapshot): string {
     <button class="b3-button b3-button--outline" data-action="regenerate">重新生成</button>
     <button class="b3-button b3-button--outline" data-action="settings">设置</button>
   </div>
-  <div class="siyuan-review-list">${renderTodayList(plan, snapshot.docs)}</div>
+  <div class="siyuan-review-list">${renderTodayList(plan, snapshot.items)}</div>
 </div>`;
 }
 
@@ -196,9 +198,9 @@ function getPendingReviewCount(snapshot: DockSnapshot): number {
   return snapshot.plan?.items.filter((item) => item.status === "pending" || item.status === "reviewing").length ?? 0;
 }
 
-function getRecentHistory(snapshot: DockSnapshot, docId: string): ReviewEvent[] {
+function getRecentHistory(snapshot: DockSnapshot, itemId: string): ReviewEvent[] {
   return (snapshot.history ?? [])
-    .filter((event) => event.docId === docId)
+    .filter((event) => event.itemId === itemId)
     .slice()
     .sort((a, b) => b.completedAt.localeCompare(a.completedAt))
     .slice(0, 3);
@@ -239,8 +241,8 @@ function renderProcessingReasonButton(
   return `<button class="b3-button b3-button--outline siyuan-review-processing-feedback__reason${selectedClass}" type="button" data-processing-reason="${reason}" ${disabledAttr}>${label}</button>`;
 }
 
-function readProcessingFeedbackDraft(root: HTMLElement, snapshot: DockSnapshot, docId: string): ProcessingFeedbackDraft {
-  const currentDraft = snapshot.processingFeedbackDrafts?.[docId] ?? {};
+function readProcessingFeedbackDraft(root: HTMLElement, snapshot: DockSnapshot, itemId: string): ProcessingFeedbackDraft {
+  const currentDraft = snapshot.processingFeedbackDrafts?.[itemId] ?? {};
   const selectedReason = root.querySelector<HTMLButtonElement>(".siyuan-review-processing-feedback__reason--selected")
     ?.dataset.processingReason as ProcessingFeedbackReason | undefined;
   const note = root.querySelector<HTMLTextAreaElement>("[data-processing-note]")?.value;
@@ -362,11 +364,11 @@ function getIconHref(icon: SVGUseElement): string {
 }
 
 function bindEvents(root: HTMLElement, snapshot: DockSnapshot, actions: DockActions): void {
-  root.querySelectorAll<HTMLButtonElement>("[data-doc-id]").forEach((button) => {
+  root.querySelectorAll<HTMLButtonElement>("[data-item-id]").forEach((button) => {
     button.addEventListener("click", () => {
-      const docId = button.dataset.docId;
-      if (docId) {
-        void actions.onSelectDoc(docId);
+      const itemId = button.dataset.itemId;
+      if (itemId) {
+        void actions.onSelectItem(itemId);
       }
     });
   });
@@ -374,26 +376,26 @@ function bindEvents(root: HTMLElement, snapshot: DockSnapshot, actions: DockActi
   root.querySelectorAll<HTMLButtonElement>("[data-feedback]").forEach((button) => {
     button.addEventListener("click", () => {
       const feedback = button.dataset.feedback as ReviewFeedback | undefined;
-      if (snapshot.selectedDocId && feedback && !button.disabled) {
+      if (snapshot.selectedItemId && feedback && !button.disabled) {
         button.disabled = true;
         button.textContent = "记录中...";
-        void actions.onFeedback(snapshot.selectedDocId, feedback);
+        void actions.onFeedback(snapshot.selectedItemId, feedback);
       }
     });
   });
 
   root.querySelector<HTMLButtonElement>('[data-action="needs-processing-feedback"]')?.addEventListener("click", (event) => {
     const button = event.currentTarget as HTMLButtonElement | null;
-    if (!snapshot.selectedDocId || !button || button.disabled) {
+    if (!snapshot.selectedItemId || !button || button.disabled) {
       return;
     }
 
-    actions.onOpenProcessingFeedback(snapshot.selectedDocId);
+    actions.onOpenProcessingFeedback(snapshot.selectedItemId);
   });
 
   root.querySelectorAll<HTMLButtonElement>("[data-processing-reason]").forEach((button) => {
     button.addEventListener("click", () => {
-      if (!snapshot.selectedDocId || button.disabled) {
+      if (!snapshot.selectedItemId || button.disabled) {
         return;
       }
 
@@ -405,38 +407,38 @@ function bindEvents(root: HTMLElement, snapshot: DockSnapshot, actions: DockActi
       root.querySelectorAll<HTMLButtonElement>("[data-processing-reason]").forEach((reasonButton) => {
         reasonButton.classList.toggle("siyuan-review-processing-feedback__reason--selected", reasonButton === button);
       });
-      actions.onUpdateProcessingFeedbackDraft(snapshot.selectedDocId, {
-        ...readProcessingFeedbackDraft(root, snapshot, snapshot.selectedDocId),
+      actions.onUpdateProcessingFeedbackDraft(snapshot.selectedItemId, {
+        ...readProcessingFeedbackDraft(root, snapshot, snapshot.selectedItemId),
         reason,
       });
     });
   });
 
   root.querySelector<HTMLTextAreaElement>("[data-processing-note]")?.addEventListener("input", (event) => {
-    if (!snapshot.selectedDocId) {
+    if (!snapshot.selectedItemId) {
       return;
     }
 
     const textarea = event.currentTarget as HTMLTextAreaElement | null;
-    actions.onUpdateProcessingFeedbackDraft(snapshot.selectedDocId, {
-      ...readProcessingFeedbackDraft(root, snapshot, snapshot.selectedDocId),
+    actions.onUpdateProcessingFeedbackDraft(snapshot.selectedItemId, {
+      ...readProcessingFeedbackDraft(root, snapshot, snapshot.selectedItemId),
       note: textarea?.value ?? "",
     });
   });
 
   root.querySelector<HTMLButtonElement>('[data-action="cancel-processing-feedback"]')?.addEventListener("click", () => {
-    if (snapshot.selectedDocId) {
-      actions.onCancelProcessingFeedback(snapshot.selectedDocId);
+    if (snapshot.selectedItemId) {
+      actions.onCancelProcessingFeedback(snapshot.selectedItemId);
     }
   });
 
   root.querySelector<HTMLButtonElement>('[data-action="submit-processing-feedback"]')?.addEventListener("click", (event) => {
     const button = event.currentTarget as HTMLButtonElement | null;
-    if (!snapshot.selectedDocId || !button || button.disabled) {
+    if (!snapshot.selectedItemId || !button || button.disabled) {
       return;
     }
 
-    const draft = readProcessingFeedbackDraft(root, snapshot, snapshot.selectedDocId);
+    const draft = readProcessingFeedbackDraft(root, snapshot, snapshot.selectedItemId);
     if (!draft.reason) {
       showMessage("请选择处理原因。", 2000, "error");
       return;
@@ -444,8 +446,8 @@ function bindEvents(root: HTMLElement, snapshot: DockSnapshot, actions: DockActi
 
     button.disabled = true;
     button.textContent = "记录中...";
-    actions.onUpdateProcessingFeedbackDraft(snapshot.selectedDocId, draft);
-    void actions.onFeedback(snapshot.selectedDocId, draft.reason, draft.note);
+    actions.onUpdateProcessingFeedbackDraft(snapshot.selectedItemId, draft);
+    void actions.onFeedback(snapshot.selectedItemId, draft.reason, draft.note);
   });
 
   root.querySelector<HTMLButtonElement>('[data-action="refresh"]')?.addEventListener("click", () => {
@@ -458,22 +460,22 @@ function bindEvents(root: HTMLElement, snapshot: DockSnapshot, actions: DockActi
 
   root.querySelector<HTMLButtonElement>('[data-action="regenerate-questions"]')?.addEventListener("click", (event) => {
     const button = event.currentTarget as HTMLButtonElement | null;
-    if (snapshot.selectedDocId && button && !button.disabled) {
+    if (snapshot.selectedItemId && button && !button.disabled) {
       button.disabled = true;
       button.classList.add("siyuan-review-button--loading");
       button.setAttribute("aria-busy", "true");
       button.textContent = "生成中...";
-      void actions.onRegenerateQuestions(snapshot.selectedDocId);
+      void actions.onRegenerateQuestions(snapshot.selectedItemId);
     }
   });
 
   root.querySelector<HTMLButtonElement>('[data-action="open-cloze"]')?.addEventListener("click", (event) => {
     const button = event.currentTarget as HTMLButtonElement | null;
-    if (snapshot.selectedDocId && button && !button.disabled) {
+    if (snapshot.selectedItemId && button && !button.disabled) {
       button.disabled = true;
       button.setAttribute("aria-busy", "true");
       button.textContent = "打开中...";
-      void actions.onOpenCloze(snapshot.selectedDocId);
+      void actions.onOpenCloze(snapshot.selectedItemId);
     }
   });
 
@@ -486,6 +488,14 @@ function bindEvents(root: HTMLElement, snapshot: DockSnapshot, actions: DockActi
   });
 }
 
+function getQuestionsForDisplay(item: ReviewItem): string[] {
+  if (item.questionCache?.source === "ai" && item.questionCache.questions.length > 0) {
+    return item.questionCache.questions;
+  }
+
+  return getTemplateQuestions(item.itemType);
+}
+
 function renderQuestionActions(isGeneratingQuestions: boolean): string {
   return `
     <div class="siyuan-review-question-actions">
@@ -494,9 +504,9 @@ function renderQuestionActions(isGeneratingQuestions: boolean): string {
     </div>`;
 }
 
-function renderCompletedReviewSummary(status: "done" | "skipped", doc: ReviewDocState): string {
+function renderCompletedReviewSummary(status: "done" | "skipped", item: ReviewItem): string {
   const statusText = status === "done" ? "已完成" : "已跳过";
-  const nextReviewText = doc.nextReviewAt ? `下次回顾 ${doc.nextReviewAt}` : "已记录本次回顾";
+  const nextReviewText = item.nextReviewAt ? `下次回顾 ${item.nextReviewAt}` : "已记录本次回顾";
 
   return `
 <section class="siyuan-review-section">

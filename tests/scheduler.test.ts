@@ -10,10 +10,10 @@ describe("buildDailyPlan", () => {
       date: "2026-07-26",
       dailyLimit: 3,
       candidates: [
-        candidate("done-doc", { lastReviewedAt: "2026-07-01" }),
-        candidate("new-doc"),
-        candidate("due-doc", { nextReviewAt: "2026-07-20" }),
-        candidate("old-doc", { lastReviewedAt: "2026-06-01" }),
+        candidate("done-item", { lastReviewedAt: "2026-07-01" }),
+        candidate("new-item"),
+        candidate("due-item", { nextReviewAt: "2026-07-20" }),
+        candidate("old-item", { lastReviewedAt: "2026-06-01" }),
       ],
       existingPlan: {
         date: "2026-07-26",
@@ -21,13 +21,13 @@ describe("buildDailyPlan", () => {
         updatedAt: "2026-07-26T08:00:00.000Z",
         items: [
           {
-            docId: "done-doc",
+            itemId: "done-item",
             reason: "oldestReviewed",
             status: "done",
             completedAt: "2026-07-26T08:10:00.000Z",
           },
           {
-            docId: "replace-me",
+            itemId: "replace-me",
             reason: "oldestReviewed",
             status: "pending",
           },
@@ -36,7 +36,7 @@ describe("buildDailyPlan", () => {
       nowIso: "2026-07-26T09:00:00.000Z",
     });
 
-    expect(plan.items.map((item) => item.docId)).toEqual(["done-doc", "due-doc", "new-doc"]);
+    expect(plan.items.map((item) => item.itemId)).toEqual(["done-item", "due-item", "new-item"]);
     expect(plan.generatedAt).toBe("2026-07-26T08:00:00.000Z");
   });
 
@@ -54,11 +54,11 @@ describe("buildDailyPlan", () => {
       nowIso: "2026-07-26T09:00:00.000Z",
     });
 
-    expect(plan.items.map((item) => item.docId)).toEqual(["due", "needs-refactor", "never-reviewed"]);
+    expect(plan.items.map((item) => item.itemId)).toEqual(["due", "needs-refactor", "never-reviewed"]);
     expect(plan.items.map((item) => item.reason)).toEqual(["due", "priority", "neverReviewed"]);
   });
 
-  it("prioritizes longer overdue documents when there are more due docs than slots", () => {
+  it("prioritizes longer overdue documents when there are more due items than slots", () => {
     vi.spyOn(Math, "random").mockReturnValue(0);
 
     const plan = buildDailyPlan({
@@ -72,7 +72,7 @@ describe("buildDailyPlan", () => {
       nowIso: "2026-07-26T09:00:00.000Z",
     });
 
-    expect(plan.items.map((item) => item.docId)).toEqual(["overdue-three-weeks", "overdue-one-week"]);
+    expect(plan.items.map((item) => item.itemId)).toEqual(["overdue-three-weeks", "overdue-one-week"]);
     expect(plan.items.every((item) => item.reason === "due")).toBe(true);
   });
 
@@ -90,7 +90,7 @@ describe("buildDailyPlan", () => {
       nowIso: "2026-07-26T09:00:00.000Z",
     });
 
-    expect(plan.items.map((item) => item.docId)).toEqual(["overdue-three-weeks"]);
+    expect(plan.items.map((item) => item.itemId)).toEqual(["overdue-three-weeks"]);
     expect(dueToday.nextReviewAt).toBe("2026-07-26");
     expect(dueToday.status).toBeUndefined();
   });
@@ -102,9 +102,9 @@ describe("buildDailyPlan", () => {
         generatedAt: "2026-07-26T08:00:00.000Z",
         updatedAt: "2026-07-26T08:00:00.000Z",
         items: [
-          { docId: "available", reason: "neverReviewed", status: "pending" },
-          { docId: "removed", reason: "neverReviewed", status: "reviewing" },
-          { docId: "done", reason: "neverReviewed", status: "done" },
+          { itemId: "available", reason: "neverReviewed", status: "pending" },
+          { itemId: "removed", reason: "neverReviewed", status: "reviewing" },
+          { itemId: "done", reason: "neverReviewed", status: "done" },
         ],
       },
       [candidate("available")],
@@ -122,7 +122,7 @@ describe("buildDailyPlan", () => {
         date: "2026-07-26",
         generatedAt: "2026-07-26T08:00:00.000Z",
         updatedAt: "2026-07-26T08:00:00.000Z",
-        items: [{ docId: "restored", reason: "neverReviewed", status: "missing" }],
+        items: [{ itemId: "restored", reason: "neverReviewed", status: "missing" }],
       },
       [candidate("restored")],
       "2026-07-26T09:00:00.000Z",
@@ -132,12 +132,17 @@ describe("buildDailyPlan", () => {
   });
 });
 
-function candidate(docId: string, overrides: Partial<ReviewCandidate> = {}): ReviewCandidate {
+function candidate(itemId: string, overrides: Partial<ReviewCandidate> = {}): ReviewCandidate {
   return {
-    docId,
+    itemId,
+    itemType: "document",
+    docId: itemId,
     notebookId: "notebook",
-    title: docId,
-    path: `/${docId}`,
+    blockType: "d",
+    title: itemId,
+    sourceTitle: itemId,
+    path: `/${itemId}`,
+    contentPreview: itemId,
     exists: true,
     ...overrides,
   };

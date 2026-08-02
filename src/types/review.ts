@@ -7,7 +7,9 @@ export type ReviewFeedback =
   | "needsRefactor"
   | "skipped";
 
-export type ReviewDocStatus = "normal" | "needsSupplement" | "needsRefactor";
+export type ReviewItemType = "document" | "block";
+
+export type ReviewItemStatus = "normal" | "needsSupplement" | "needsRefactor";
 
 export type DailyPlanReason =
   | "due"
@@ -33,14 +35,20 @@ export type QuestionCache = {
   contentHash?: string;
 };
 
-export type ReviewDocState = {
+export type ReviewItem = {
+  itemId: string;
+  itemType: ReviewItemType;
   docId: string;
   notebookId: string;
+  blockType: string;
   title: string;
+  sourceTitle: string;
   path: string;
+  contentPreview: string;
+  contentHash?: string;
   lastReviewedAt?: string;
   nextReviewAt?: string;
-  status?: ReviewDocStatus;
+  status?: ReviewItemStatus;
   priorityBoost?: number;
   reviewCount?: number;
   successStreak?: number;
@@ -52,12 +60,12 @@ export type ReviewDocState = {
   clozeCheckCount?: number;
 };
 
-export type ReviewCandidate = ReviewDocState & {
+export type ReviewCandidate = ReviewItem & {
   exists: boolean;
 };
 
 export type DailyPlanItem = {
-  docId: string;
+  itemId: string;
   reason: DailyPlanReason;
   status: DailyPlanItemStatus;
   startedAt?: string;
@@ -73,7 +81,7 @@ export type DailyPlan = {
 
 export type ReviewEvent = {
   id: string;
-  docId: string;
+  itemId: string;
   feedback: ReviewFeedback;
   note?: string;
   startedAt?: string;
@@ -84,18 +92,18 @@ export type ReviewEvent = {
 };
 
 export type ReviewData = {
-  schemaVersion: 1;
-  docs: Record<string, ReviewDocState>;
+  schemaVersion: 2;
+  items: Record<string, ReviewItem>;
   dailyPlans: Record<string, DailyPlan>;
   history: ReviewEvent[];
   lastNotifiedDate?: string;
 };
 
 export type ReviewExport = {
-  schemaVersion: 1;
+  schemaVersion: 2;
   exportedAt: string;
   settings: ReviewSettings;
-  docs: Record<string, ReviewDocState>;
+  items: Record<string, ReviewItem>;
   dailyPlans: Record<string, DailyPlan>;
   history: ReviewEvent[];
 };

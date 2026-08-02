@@ -1,8 +1,8 @@
-import type { ReviewDocState, ReviewFeedback } from "../types/review";
+import type { ReviewFeedback, ReviewItem } from "../types/review";
 import type { ReviewIntervals, ReviewSchedulingSettings } from "../types/settings";
 
 type CalculateNextIntervalInput = {
-  doc: ReviewDocState;
+  item: ReviewItem;
   feedback: ReviewFeedback;
   intervals: ReviewIntervals;
   scheduling?: ReviewSchedulingSettings;
@@ -11,7 +11,7 @@ type CalculateNextIntervalInput = {
 type CalculateNextIntervalResult = {
   intervalDays: number;
   memoryState: Pick<
-    ReviewDocState,
+    ReviewItem,
     "reviewCount" | "successStreak" | "lapseCount" | "currentIntervalDays" | "lastFeedback"
   >;
 };
@@ -23,17 +23,17 @@ const MIN_INTERVAL_DAYS = 1;
 
 export function calculateNextInterval(input: CalculateNextIntervalInput): CalculateNextIntervalResult {
   const maxIntervalDays = clampMaxInterval(input.scheduling?.maxIntervalDays);
-  const previousInterval = getPreviousInterval(input.doc, input.intervals);
+  const previousInterval = getPreviousInterval(input.item, input.intervals);
 
   if (input.feedback === "skipped") {
     const intervalDays = clamp(input.intervals.skipped, MIN_INTERVAL_DAYS, Math.min(maxIntervalDays, 7));
     return {
       intervalDays,
       memoryState: {
-        reviewCount: input.doc.reviewCount ?? 0,
-        successStreak: input.doc.successStreak ?? 0,
-        lapseCount: input.doc.lapseCount ?? 0,
-        currentIntervalDays: input.doc.currentIntervalDays,
+        reviewCount: input.item.reviewCount ?? 0,
+        successStreak: input.item.successStreak ?? 0,
+        lapseCount: input.item.lapseCount ?? 0,
+        currentIntervalDays: input.item.currentIntervalDays,
         lastFeedback: input.feedback,
       },
     };
@@ -44,9 +44,9 @@ export function calculateNextInterval(input: CalculateNextIntervalInput): Calcul
     return {
       intervalDays,
       memoryState: {
-        reviewCount: increment(input.doc.reviewCount),
+        reviewCount: increment(input.item.reviewCount),
         successStreak: 0,
-        lapseCount: increment(input.doc.lapseCount),
+        lapseCount: increment(input.item.lapseCount),
         currentIntervalDays: intervalDays,
         lastFeedback: input.feedback,
       },
@@ -58,16 +58,16 @@ export function calculateNextInterval(input: CalculateNextIntervalInput): Calcul
     return {
       intervalDays,
       memoryState: {
-        reviewCount: increment(input.doc.reviewCount),
+        reviewCount: increment(input.item.reviewCount),
         successStreak: 0,
-        lapseCount: increment(input.doc.lapseCount),
+        lapseCount: increment(input.item.lapseCount),
         currentIntervalDays: intervalDays,
         lastFeedback: input.feedback,
       },
     };
   }
 
-  const nextSuccessStreak = increment(input.doc.successStreak);
+  const nextSuccessStreak = increment(input.item.successStreak);
   const intervalDays = getSuccessInterval({
     feedback: input.feedback,
     successStreak: nextSuccessStreak,
@@ -78,9 +78,9 @@ export function calculateNextInterval(input: CalculateNextIntervalInput): Calcul
   return {
     intervalDays,
     memoryState: {
-      reviewCount: increment(input.doc.reviewCount),
+      reviewCount: increment(input.item.reviewCount),
       successStreak: nextSuccessStreak,
-      lapseCount: input.doc.lapseCount ?? 0,
+      lapseCount: input.item.lapseCount ?? 0,
       currentIntervalDays: intervalDays,
       lastFeedback: input.feedback,
     },
@@ -103,9 +103,9 @@ function getSuccessInterval(input: {
   return clamp(Math.round(input.previousInterval * factor), MIN_INTERVAL_DAYS, input.maxIntervalDays);
 }
 
-function getPreviousInterval(doc: ReviewDocState, intervals: ReviewIntervals): number {
-  if (Number.isFinite(doc.currentIntervalDays) && doc.currentIntervalDays && doc.currentIntervalDays > 0) {
-    return doc.currentIntervalDays;
+function getPreviousInterval(item: ReviewItem, intervals: ReviewIntervals): number {
+  if (Number.isFinite(item.currentIntervalDays) && item.currentIntervalDays && item.currentIntervalDays > 0) {
+    return item.currentIntervalDays;
   }
 
   return intervals.normal;

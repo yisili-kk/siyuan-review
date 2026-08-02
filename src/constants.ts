@@ -1,7 +1,7 @@
 import type { TemplateQuestion } from "./types/review";
 import type { ReviewSettings } from "./types/settings";
 
-export const DATA_SCHEMA_VERSION = 1;
+export const DATA_SCHEMA_VERSION = 2;
 export const SETTINGS_FILE = "settings.json";
 export const REVIEW_DATA_FILE = "review-data.json";
 export const REVIEW_DATA_BACKUP_FILE = "review-data.backup.json";
@@ -11,6 +11,14 @@ export const TEMPLATE_QUESTIONS: TemplateQuestion[] = [
   "这篇文档有没有已经过时、模糊或缺证据的地方？",
   "它可以和最近哪些文档、项目或问题建立连接？",
   "如果只能保留一个结论，这篇文档应该留下什么？",
+  "下一步可以补充、拆分或重构哪里？",
+];
+
+export const BLOCK_TEMPLATE_QUESTIONS: TemplateQuestion[] = [
+  "这个片段现在最值得保留的观点是什么？",
+  "这个片段有没有需要补充、澄清或验证的地方？",
+  "它可以和最近哪些文档、项目或问题建立连接？",
+  "如果只保留一个结论，这个片段应该留下什么？",
   "下一步可以补充、拆分或重构哪里？",
 ];
 

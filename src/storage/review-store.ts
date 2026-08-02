@@ -1,5 +1,5 @@
 import { DATA_SCHEMA_VERSION, REVIEW_DATA_BACKUP_FILE, REVIEW_DATA_FILE } from "../constants";
-import type { DailyPlan, ReviewData, ReviewDocState, ReviewEvent } from "../types/review";
+import type { DailyPlan, ReviewData, ReviewEvent, ReviewItem } from "../types/review";
 import type { PersistAdapter } from "./persist-adapter";
 import { migrateReviewData } from "./migrations";
 
@@ -34,12 +34,12 @@ export class ReviewStore {
     this.data = data;
   }
 
-  upsertDocs(docs: ReviewDocState[]): void {
+  upsertItems(items: ReviewItem[]): void {
     const data = this.getData();
-    for (const doc of docs) {
-      data.docs[doc.docId] = {
-        ...data.docs[doc.docId],
-        ...doc,
+    for (const item of items) {
+      data.items[item.itemId] = {
+        ...data.items[item.itemId],
+        ...item,
       };
     }
   }
@@ -56,7 +56,7 @@ export class ReviewStore {
 export function createEmptyReviewData(): ReviewData {
   return {
     schemaVersion: DATA_SCHEMA_VERSION,
-    docs: {},
+    items: {},
     dailyPlans: {},
     history: [],
   };
