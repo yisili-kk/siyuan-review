@@ -44,6 +44,10 @@ export type ReviewItem = {
   title: string;
   sourceTitle: string;
   path: string;
+  groupId: string;
+  groupName: string;
+  groupTag: string;
+  templateQuestions: string[];
   contentPreview: string;
   contentHash?: string;
   lastReviewedAt?: string;
@@ -66,6 +70,7 @@ export type ReviewCandidate = ReviewItem & {
 
 export type DailyPlanItem = {
   itemId: string;
+  groupId: string;
   reason: DailyPlanReason;
   status: DailyPlanItemStatus;
   startedAt?: string;

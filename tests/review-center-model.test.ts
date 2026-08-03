@@ -14,11 +14,11 @@ describe("review center model", () => {
       generatedAt: "2026-08-02T00:00:00.000Z",
       updatedAt: "2026-08-02T00:00:00.000Z",
       items: [
-        { itemId: "pending", reason: "due", status: "pending" },
-        { itemId: "reviewing", reason: "due", status: "reviewing" },
-        { itemId: "done", reason: "due", status: "done" },
-        { itemId: "skipped", reason: "due", status: "skipped" },
-        { itemId: "missing", reason: "due", status: "missing" },
+        { itemId: "pending", groupId: "default", reason: "due", status: "pending" },
+        { itemId: "reviewing", groupId: "default", reason: "due", status: "reviewing" },
+        { itemId: "done", groupId: "default", reason: "due", status: "done" },
+        { itemId: "skipped", groupId: "default", reason: "due", status: "skipped" },
+        { itemId: "missing", groupId: "default", reason: "due", status: "missing" },
       ],
     };
 
@@ -58,6 +58,10 @@ function item(itemId: string, overrides: Partial<ReviewCandidate> = {}): ReviewC
     title: itemId,
     sourceTitle: itemId,
     path: `/${itemId}`,
+    groupId: "default",
+    groupName: "普通笔记",
+    groupTag: "review",
+    templateQuestions: ["问题"],
     contentPreview: itemId,
     exists: true,
     ...overrides,

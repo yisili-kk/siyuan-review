@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { scanReviewCandidates } from "../src/core/document-indexer";
 import { getBlockMarkdown, queryReviewBlocksByTag } from "../src/siyuan/document";
+import { DEFAULT_SETTINGS } from "../src/constants";
 
 vi.mock("../src/siyuan/document", () => ({
   getBlockMarkdown: vi.fn(),
@@ -36,33 +37,9 @@ describe("document-indexer", () => {
     ]);
 
     const candidates = await scanReviewCandidates({
+      ...DEFAULT_SETTINGS,
       enabledNotebooks: ["notebook"],
-      dailyLimit: 5,
-      reviewTag: "review",
-      intervals: {
-        valuable: 14,
-        normal: 7,
-        needsSupplement: 3,
-        needsRefactor: 3,
-        skipped: 1,
-      },
-      scheduling: {
-        maxIntervalDays: 180,
-      },
-      ai: {
-        enabled: false,
-        baseUrl: "",
-        apiKey: "",
-        model: "",
-        contentStrategy: "full",
-        maxChars: 16000,
-      },
-      dataRetention: {
-        enabled: true,
-        keepDailyPlansDays: 180,
-        keepHistoryLimit: 1000,
-        pruneMissingDocsDays: 90,
-      },
+      reviewGroups: [reviewGroup("default", "普通笔记", "review", 5)],
     });
 
     expect(candidates).toMatchObject([
@@ -72,6 +49,9 @@ describe("document-indexer", () => {
         docId: "doc-a",
         title: "Doc A",
         sourceTitle: "Doc A",
+        groupId: "default",
+        groupName: "普通笔记",
+        groupTag: "review",
       },
       {
         itemId: "block-a",
@@ -79,6 +59,9 @@ describe("document-indexer", () => {
         docId: "daily-doc",
         title: "碎片想法",
         sourceTitle: "2026-08-02",
+        groupId: "default",
+        groupName: "普通笔记",
+        groupTag: "review",
       },
     ]);
   });
@@ -98,33 +81,9 @@ describe("document-indexer", () => {
     vi.mocked(getBlockMarkdown).mockResolvedValue('{: id="block-empty" updated="20260802"}\n真正需要回顾的片段内容 #review#');
 
     const candidates = await scanReviewCandidates({
+      ...DEFAULT_SETTINGS,
       enabledNotebooks: ["notebook"],
-      dailyLimit: 5,
-      reviewTag: "review",
-      intervals: {
-        valuable: 14,
-        normal: 7,
-        needsSupplement: 3,
-        needsRefactor: 3,
-        skipped: 1,
-      },
-      scheduling: {
-        maxIntervalDays: 180,
-      },
-      ai: {
-        enabled: false,
-        baseUrl: "",
-        apiKey: "",
-        model: "",
-        contentStrategy: "full",
-        maxChars: 16000,
-      },
-      dataRetention: {
-        enabled: true,
-        keepDailyPlansDays: 180,
-        keepHistoryLimit: 1000,
-        pruneMissingDocsDays: 90,
-      },
+      reviewGroups: [reviewGroup("default", "普通笔记", "review", 5)],
     });
 
     expect(candidates[0]).toMatchObject({
@@ -150,33 +109,9 @@ describe("document-indexer", () => {
     ]);
 
     const candidates = await scanReviewCandidates({
+      ...DEFAULT_SETTINGS,
       enabledNotebooks: ["notebook"],
-      dailyLimit: 5,
-      reviewTag: "review",
-      intervals: {
-        valuable: 14,
-        normal: 7,
-        needsSupplement: 3,
-        needsRefactor: 3,
-        skipped: 1,
-      },
-      scheduling: {
-        maxIntervalDays: 180,
-      },
-      ai: {
-        enabled: false,
-        baseUrl: "",
-        apiKey: "",
-        model: "",
-        contentStrategy: "full",
-        maxChars: 16000,
-      },
-      dataRetention: {
-        enabled: true,
-        keepDailyPlansDays: 180,
-        keepHistoryLimit: 1000,
-        pruneMissingDocsDays: 90,
-      },
+      reviewGroups: [reviewGroup("default", "普通笔记", "review", 5)],
     });
 
     expect(candidates[0]?.title).toBe("在远古时代，我们的祖先会遭遇到自然灾害。");
@@ -199,36 +134,56 @@ describe("document-indexer", () => {
     vi.mocked(getBlockMarkdown).mockResolvedValue("");
 
     const candidates = await scanReviewCandidates({
+      ...DEFAULT_SETTINGS,
       enabledNotebooks: ["notebook"],
-      dailyLimit: 5,
-      reviewTag: "review",
-      intervals: {
-        valuable: 14,
-        normal: 7,
-        needsSupplement: 3,
-        needsRefactor: 3,
-        skipped: 1,
-      },
-      scheduling: {
-        maxIntervalDays: 180,
-      },
-      ai: {
-        enabled: false,
-        baseUrl: "",
-        apiKey: "",
-        model: "",
-        contentStrategy: "full",
-        maxChars: 16000,
-      },
-      dataRetention: {
-        enabled: true,
-        keepDailyPlansDays: 180,
-        keepHistoryLimit: 1000,
-        pruneMissingDocsDays: 90,
-      },
+      reviewGroups: [reviewGroup("default", "普通笔记", "review", 5)],
     });
 
     expect(candidates[0]?.title).toBe("可用性标准：尼尔森十大可用性原则 From Jakob Nielsen");
     expect(getBlockMarkdown).not.toHaveBeenCalled();
   });
+
+  it("uses the most specific matching group when one block has multiple review tags", async () => {
+    vi.mocked(queryReviewBlocksByTag).mockResolvedValue([
+      {
+        id: "multi-tag",
+        docId: "doc-book",
+        notebookId: "notebook",
+        blockType: "p",
+        content: "#review# #review/language# take off",
+        docTitle: "English",
+        path: "/English",
+      },
+    ]);
+    vi.mocked(getBlockMarkdown).mockResolvedValue("");
+
+    const candidates = await scanReviewCandidates({
+      ...DEFAULT_SETTINGS,
+      enabledNotebooks: ["notebook"],
+      reviewGroups: [
+        reviewGroup("default", "普通笔记", "review", 2),
+        reviewGroup("language", "语言点", "review/language", 3),
+      ],
+    });
+
+    expect(queryReviewBlocksByTag).toHaveBeenCalledTimes(2);
+    expect(candidates).toHaveLength(1);
+    expect(candidates[0]).toMatchObject({
+      itemId: "multi-tag",
+      groupId: "language",
+      groupName: "语言点",
+      groupTag: "review/language",
+    });
+  });
 });
+
+function reviewGroup(id: string, name: string, tag: string, dailyLimit: number) {
+  return {
+    id,
+    name,
+    tag,
+    dailyLimit,
+    templateQuestions: [`${name}问题`],
+    enabled: true,
+  };
+}

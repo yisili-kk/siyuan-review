@@ -67,6 +67,7 @@ function buildReviewCenterHtml(input: {
         <label class="siyuan-review-pool-filter">
           <select class="b3-select" data-action="pool-filter">
             <option value="all">全部</option>
+            ${renderGroupFilterOptions(input.items)}
             <option value="document">文档</option>
             <option value="block">片段</option>
             <option value="today">今日待回顾</option>
@@ -113,15 +114,19 @@ function renderPoolTable(items: ReviewCandidate[], todayPlan: DailyPlan | undefi
       const categories = getPoolCategories(item, activeTodayItemIds, date);
       const status = renderPoolStatus(getPoolStatusKey(item, activeTodayItemIds, date));
       const typeLabel = item.itemType === "document" ? "文档" : "片段";
+      const groupLine = `<small class="siyuan-review-pool-source">${escapeHtml(item.groupName)}</small>`;
       const sourceLine =
         item.itemType === "block"
           ? `<small class="siyuan-review-pool-source">来源文档：${escapeHtml(item.sourceTitle)}</small>`
           : "";
       const searchableText = `${item.title} ${item.sourceTitle}`.toLocaleLowerCase();
       return `
-<tr data-categories="${categories.join(" ")}" data-title="${escapeHtml(searchableText)}" data-pool-row>
+<tr data-categories="${escapeHtml(categories.join(" "))}" data-title="${escapeHtml(searchableText)}" data-pool-row>
   <td data-role="row-index"></td>
-  <td>${escapeHtml(typeLabel)}</td>
+  <td>
+    ${escapeHtml(typeLabel)}
+    ${groupLine}
+  </td>
   <td>
     <strong>${escapeHtml(item.title)}</strong>
     ${sourceLine}
@@ -156,6 +161,22 @@ function renderPoolTable(items: ReviewCandidate[], todayPlan: DailyPlan | undefi
   </thead>
   <tbody>${rows}</tbody>
 </table>`;
+}
+
+function renderGroupFilterOptions(items: ReviewCandidate[]): string {
+  const groups = new Map<string, string>();
+  items
+    .filter((item) => item.exists)
+    .forEach((item) => {
+      if (!groups.has(item.groupId)) {
+        groups.set(item.groupId, item.groupName);
+      }
+    });
+
+  return Array.from(groups.entries())
+    .sort((a, b) => a[1].localeCompare(b[1]))
+    .map(([groupId, groupName]) => `<option value="group:${escapeHtml(groupId)}">${escapeHtml(groupName)}</option>`)
+    .join("");
 }
 
 function bindPoolFilters(root: HTMLElement): void {

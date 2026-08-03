@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { canUseAiQuestionGeneration, getReviewQuestions } from "../src/core/question-service";
-import { BLOCK_TEMPLATE_QUESTIONS, TEMPLATE_QUESTIONS } from "../src/constants";
+import { TEMPLATE_QUESTIONS } from "../src/constants";
 import type { ReviewItem } from "../src/types/review";
 import type { AiSettings } from "../src/types/settings";
 
@@ -13,6 +13,10 @@ const item: ReviewItem = {
   title: "Doc A",
   sourceTitle: "Doc A",
   path: "/Doc A",
+  groupId: "default",
+  groupName: "普通笔记",
+  groupTag: "review",
+  templateQuestions: ["自定义问题"],
   contentPreview: "Doc A",
 };
 
@@ -28,7 +32,7 @@ describe("question-service", () => {
     });
 
     expect(result.source).toBe("template");
-    expect(result.questions).toEqual(TEMPLATE_QUESTIONS);
+    expect(result.questions).toEqual(["自定义问题"]);
     expect(generateAiQuestions).not.toHaveBeenCalled();
   });
 
@@ -39,7 +43,7 @@ describe("question-service", () => {
     expect(canUseAiQuestionGeneration(aiSettings({ enabled: false }))).toBe(false);
   });
 
-  it("uses block-specific template questions for review fragments", async () => {
+  it("uses group template questions before built-in block templates", async () => {
     const result = await getReviewQuestions({
       item: {
         ...item,
@@ -52,7 +56,21 @@ describe("question-service", () => {
       nowIso: "2026-07-26T08:00:00.000Z",
     });
 
-    expect(result.questions).toEqual(BLOCK_TEMPLATE_QUESTIONS);
+    expect(result.questions).toEqual(["自定义问题"]);
+  });
+
+  it("falls back to built-in templates when group questions are empty", async () => {
+    const result = await getReviewQuestions({
+      item: {
+        ...item,
+        templateQuestions: [],
+      },
+      content: "content",
+      ai: aiSettings({ enabled: false }),
+      nowIso: "2026-07-26T08:00:00.000Z",
+    });
+
+    expect(result.questions).toEqual(TEMPLATE_QUESTIONS);
   });
 
 });

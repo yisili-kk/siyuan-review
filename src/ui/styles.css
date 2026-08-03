@@ -1086,6 +1086,121 @@
   grid-template-columns: minmax(160px, 220px) minmax(260px, 1fr);
 }
 
+.siyuan-review-group-editor {
+  display: grid;
+  gap: 12px;
+}
+
+.siyuan-review-group-editor__body {
+  display: grid;
+  gap: 12px;
+}
+
+.siyuan-review-group-row {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--b3-border-color);
+  border-radius: 6px;
+  background: var(--b3-theme-background);
+}
+
+.siyuan-review-group-card__top {
+  display: grid;
+  grid-template-columns: auto minmax(180px, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+}
+
+.siyuan-review-group-card__enabled {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--b3-theme-on-surface);
+  font-size: 12px;
+}
+
+.siyuan-review-group-card__name {
+  font-weight: 600;
+}
+
+.siyuan-review-group-card__fields {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(120px, 180px);
+  gap: 12px;
+}
+
+.siyuan-review-group-card__field {
+  display: grid;
+  gap: 6px;
+}
+
+.siyuan-review-group-card__field span,
+.siyuan-review-group-card__question-summary span {
+  color: var(--b3-theme-on-surface);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.siyuan-review-group-card__question-summary {
+  display: flex;
+  min-height: 34px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 2px;
+}
+
+.siyuan-review-group-row input,
+.siyuan-review-template-question-row input {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+}
+
+.siyuan-review-group-row__questions {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--b3-border-color);
+  border-radius: 6px;
+  background: var(--b3-theme-surface);
+}
+
+.siyuan-review-group-row__questions[hidden] {
+  display: none;
+}
+
+.siyuan-review-group-row__questions-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.siyuan-review-group-row__questions-head span {
+  color: var(--b3-theme-on-surface);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.siyuan-review-template-question-list {
+  display: grid;
+  gap: 8px;
+}
+
+.siyuan-review-template-question-row {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) 72px;
+  align-items: center;
+  gap: 10px;
+}
+
+.siyuan-review-template-question-row > span {
+  color: var(--b3-theme-on-surface);
+  text-align: center;
+}
+
 .siyuan-review-setting-field {
   display: grid;
   gap: 7px;
@@ -1142,6 +1257,23 @@
   .siyuan-review-setting-fields--two,
   .siyuan-review-setting-fields {
     grid-template-columns: 1fr;
+  }
+
+  .siyuan-review-group-card__top,
+  .siyuan-review-group-card__fields {
+    grid-template-columns: 1fr;
+  }
+
+  .siyuan-review-group-card__enabled {
+    min-height: 28px;
+  }
+
+  .siyuan-review-template-question-row {
+    grid-template-columns: 24px minmax(0, 1fr);
+  }
+
+  .siyuan-review-template-question-row button {
+    grid-column: 2;
   }
 
   .siyuan-review-cloze__head,

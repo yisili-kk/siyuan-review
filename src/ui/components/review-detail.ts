@@ -2,7 +2,10 @@ import type { ReviewEvent, ReviewFeedback, ReviewItem } from "../../types/review
 import { toDateKey } from "../../utils/date";
 
 export function renderReviewDetail(item: ReviewItem, options: { isOpeningCloze?: boolean } = {}): string {
-  const source = item.itemType === "block" ? `<p>片段 · 来自 ${escapeHtml(item.sourceTitle)}</p>` : "<p>文档</p>";
+  const source =
+    item.itemType === "block"
+      ? `<p>${escapeHtml(item.groupName)} · 片段 · 来自 ${escapeHtml(item.sourceTitle)}</p>`
+      : `<p>${escapeHtml(item.groupName)} · 文档</p>`;
   return `
 <section class="siyuan-review-detail">
   <div class="siyuan-review-detail__main">

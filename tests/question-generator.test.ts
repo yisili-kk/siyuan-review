@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { parseQuestionList } from "../src/ai/question-generator";
+import { buildQuestionPrompt } from "../src/ai/prompt";
+import type { ReviewItem } from "../src/types/review";
 
 describe("parseQuestionList", () => {
   it("normalizes numbered lists and keeps at most five questions", () => {
@@ -23,4 +25,30 @@ describe("parseQuestionList", () => {
 
     expect(question).toHaveLength(80);
   });
+
+  it("includes review group template directions in AI prompts", () => {
+    const prompt = buildQuestionPrompt(item(), "resource means useful supply");
+
+    expect(prompt).toContain("回顾分组：语言点");
+    expect(prompt).toContain("分组默认问题方向");
+    expect(prompt).toContain("这个词或短语的核心含义是什么？");
+  });
 });
+
+function item(): ReviewItem {
+  return {
+    itemId: "word-resource",
+    itemType: "document",
+    docId: "word-resource",
+    notebookId: "language",
+    blockType: "d",
+    title: "resource",
+    sourceTitle: "resource",
+    path: "/resource",
+    groupId: "language",
+    groupName: "语言点",
+    groupTag: "review/language",
+    templateQuestions: ["这个词或短语的核心含义是什么？"],
+    contentPreview: "resource",
+  };
+}

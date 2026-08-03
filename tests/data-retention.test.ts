@@ -142,6 +142,10 @@ function item(itemId: string, overrides: Partial<ReviewItem> = {}): ReviewItem {
     title: itemId,
     sourceTitle: itemId,
     path: `/${itemId}`,
+    groupId: "default",
+    groupName: "普通笔记",
+    groupTag: "review",
+    templateQuestions: ["问题"],
     contentPreview: itemId,
     ...overrides,
   };
@@ -154,6 +158,7 @@ function plan(date: string, itemIds: string[]): DailyPlan {
     updatedAt: `${date}T08:00:00.000Z`,
     items: itemIds.map((itemId) => ({
       itemId,
+      groupId: "default",
       reason: "neverReviewed",
       status: "pending",
     })),

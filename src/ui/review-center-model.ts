@@ -30,7 +30,7 @@ export function getReviewCenterStats(items: ReviewCandidate[], todayPlan: DailyP
 }
 
 export function getPoolCategories(item: ReviewCandidate, todayItemIds: Set<string>, date: string): string[] {
-  const categories = ["all", item.itemType];
+  const categories = ["all", item.itemType, `group:${item.groupId}`];
   if (todayItemIds.has(item.itemId)) {
     categories.push("today");
   }

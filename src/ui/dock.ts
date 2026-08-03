@@ -493,7 +493,7 @@ function getQuestionsForDisplay(item: ReviewItem): string[] {
     return item.questionCache.questions;
   }
 
-  return getTemplateQuestions(item.itemType);
+  return getTemplateQuestions(item.itemType, item);
 }
 
 function renderQuestionActions(isGeneratingQuestions: boolean): string {

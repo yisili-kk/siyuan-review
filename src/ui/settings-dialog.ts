@@ -1,6 +1,6 @@
 import { Dialog, showMessage } from "siyuan";
 import type { NotebookInfo } from "../types/siyuan";
-import type { ReviewSettings } from "../types/settings";
+import type { ReviewGroupSettings, ReviewSettings } from "../types/settings";
 
 export function openSettingsDialog(input: {
   settings: ReviewSettings;
@@ -54,6 +54,8 @@ export function openSettingsDialog(input: {
   cancelButton?.addEventListener("click", () => {
     dialog.destroy();
   });
+
+  bindReviewGroupActions(root);
 }
 
 function buildSettingsDialogHtml(settings: ReviewSettings, notebooks: NotebookInfo[]): string {
@@ -94,12 +96,14 @@ function renderSettingsSections(settings: ReviewSettings, notebooks: NotebookInf
 
     <section class="siyuan-review-setting-section">
       <div class="siyuan-review-setting-section__head">
-        <h3>基础规则</h3>
-        <p>控制每天生成多少回顾文档，以及用哪个标签识别候选文档。</p>
+        <h3>回顾分组</h3>
+        <p>不同标签进入不同回顾组，每组独立占用每日名额，未用完的名额会自动补齐。</p>
       </div>
-      <div class="siyuan-review-setting-fields siyuan-review-setting-fields--two">
-        ${textInput("dailyLimit", "每日回顾数量", "每天最多推送的文档数量。", String(settings.dailyLimit), "number", "1", "50")}
-        ${textInput("reviewTag", "识别标签", "文档中包含这个标签时进入候选池。", settings.reviewTag)}
+      <div class="siyuan-review-group-editor">
+        <div class="siyuan-review-group-editor__body" data-role="review-groups">
+          ${settings.reviewGroups.map(renderReviewGroupRow).join("")}
+        </div>
+        <button class="b3-button b3-button--outline" type="button" data-action="add-review-group">新增分组</button>
       </div>
     </section>
 
@@ -152,8 +156,7 @@ function readSettingsForm(root: HTMLElement, current: ReviewSettings): ReviewSet
   return {
     ...current,
     enabledNotebooks,
-    dailyLimit: readNumber(root, "dailyLimit", current.dailyLimit, 1, 50),
-    reviewTag: readString(root, "reviewTag", current.reviewTag),
+    reviewGroups: readReviewGroups(root),
     intervals: {
       ...current.intervals,
     },
@@ -176,6 +179,177 @@ function readSettingsForm(root: HTMLElement, current: ReviewSettings): ReviewSet
       pruneMissingDocsDays: readNumber(root, "pruneMissingDocsDays", current.dataRetention.pruneMissingDocsDays, 30, 3650),
     },
   };
+}
+
+function bindReviewGroupActions(root: HTMLElement): void {
+  root.querySelector<HTMLButtonElement>('[data-action="add-review-group"]')?.addEventListener("click", () => {
+    const list = root.querySelector<HTMLElement>('[data-role="review-groups"]');
+    if (!list) {
+      return;
+    }
+
+    const count = list.querySelectorAll<HTMLElement>("[data-review-group-row]").length + 1;
+    list.insertAdjacentHTML(
+      "beforeend",
+      renderReviewGroupRow({
+        id: `group-${Date.now().toString(36)}-${count}`,
+        name: `分组 ${count}`,
+        tag: "",
+        dailyLimit: 1,
+        templateQuestions: [
+          "这个内容最值得回顾的部分是什么？",
+          "它有没有需要补充或澄清的地方？",
+          "下一步可以怎么使用或处理它？",
+        ],
+        enabled: true,
+      }),
+    );
+  });
+
+  root.querySelector<HTMLElement>('[data-role="review-groups"]')?.addEventListener("click", (event) => {
+    const target = event.target as HTMLElement | null;
+    const removeGroupButton = target?.closest<HTMLButtonElement>('[data-action="remove-review-group"]');
+    if (removeGroupButton) {
+      removeGroupButton.closest("[data-review-group-row]")?.remove();
+      return;
+    }
+
+    const addQuestionButton = target?.closest<HTMLButtonElement>('[data-action="add-template-question"]');
+    if (addQuestionButton) {
+      const row = addQuestionButton.closest<HTMLElement>("[data-review-group-row]");
+      const list = row?.querySelector<HTMLElement>('[data-role="template-questions"]');
+      if (!row || !list) {
+        return;
+      }
+
+      list.insertAdjacentHTML("beforeend", renderTemplateQuestionInput("", list.children.length));
+      refreshQuestionIndexes(row);
+      refreshQuestionSummary(row);
+      return;
+    }
+
+    const removeQuestionButton = target?.closest<HTMLButtonElement>('[data-action="remove-template-question"]');
+    if (removeQuestionButton) {
+      const row = removeQuestionButton.closest<HTMLElement>("[data-review-group-row]");
+      removeQuestionButton.closest("[data-template-question-row]")?.remove();
+      if (row) {
+        refreshQuestionIndexes(row);
+        refreshQuestionSummary(row);
+      }
+      return;
+    }
+
+    const editQuestionsButton = target?.closest<HTMLButtonElement>('[data-action="toggle-template-questions"]');
+    if (editQuestionsButton) {
+      const row = editQuestionsButton.closest<HTMLElement>("[data-review-group-row]");
+      const questions = row?.querySelector<HTMLElement>('[data-role="template-question-editor"]');
+      if (!questions) {
+        return;
+      }
+
+      questions.hidden = !questions.hidden;
+      editQuestionsButton.textContent = questions.hidden ? "编辑问题" : "收起";
+    }
+  });
+
+  root.querySelector<HTMLElement>('[data-role="review-groups"]')?.addEventListener("input", (event) => {
+    const target = event.target as HTMLElement | null;
+    if (!target?.matches('[data-group-field="templateQuestion"]')) {
+      return;
+    }
+
+    const row = target.closest<HTMLElement>("[data-review-group-row]");
+    if (row) {
+      refreshQuestionSummary(row);
+    }
+  });
+}
+
+function renderReviewGroupRow(group: ReviewGroupSettings): string {
+  return `
+<div class="siyuan-review-group-row" data-review-group-row data-group-id="${escapeHtml(group.id)}">
+  <div class="siyuan-review-group-card__top">
+    <label class="siyuan-review-group-card__enabled">
+      <input class="b3-checkbox" type="checkbox" data-group-field="enabled" ${group.enabled ? "checked" : ""}>
+      <span>启用</span>
+    </label>
+    <input class="b3-text-field siyuan-review-group-card__name" type="text" data-group-field="name" value="${escapeHtml(group.name)}" placeholder="例如：语言点">
+    <button class="b3-button b3-button--outline" type="button" data-action="remove-review-group">删除分组</button>
+  </div>
+  <div class="siyuan-review-group-card__fields">
+    <label class="siyuan-review-group-card__field">
+      <span>识别标签</span>
+      <input class="b3-text-field" type="text" data-group-field="tag" value="${escapeHtml(group.tag)}" placeholder="例如：review/language">
+    </label>
+    <label class="siyuan-review-group-card__field siyuan-review-group-card__field--limit">
+      <span>每日数量</span>
+      <input class="b3-text-field" type="number" min="0" max="50" data-group-field="dailyLimit" value="${group.dailyLimit}">
+    </label>
+  </div>
+  <div class="siyuan-review-group-card__question-summary">
+    <span data-role="template-question-summary">默认问题 ${group.templateQuestions.length} 个</span>
+    <button class="b3-button b3-button--outline" type="button" data-action="toggle-template-questions">编辑问题</button>
+  </div>
+  <div class="siyuan-review-group-row__questions" data-role="template-question-editor" hidden>
+    <div class="siyuan-review-group-row__questions-head">
+      <span>默认问题</span>
+      <button class="b3-button b3-button--outline" type="button" data-action="add-template-question">添加问题</button>
+    </div>
+    <div class="siyuan-review-template-question-list" data-role="template-questions">
+      ${group.templateQuestions.map(renderTemplateQuestionInput).join("")}
+    </div>
+  </div>
+</div>`;
+}
+
+function renderTemplateQuestionInput(question: string, index: number): string {
+  return `
+<div class="siyuan-review-template-question-row" data-template-question-row>
+  <span data-role="template-question-index">${index + 1}</span>
+  <input class="b3-text-field" type="text" data-group-field="templateQuestion" value="${escapeHtml(question)}" placeholder="问题输入">
+  <button class="b3-button b3-button--outline" type="button" data-action="remove-template-question">删除</button>
+</div>`;
+}
+
+function readReviewGroups(root: HTMLElement): ReviewGroupSettings[] {
+  return Array.from(root.querySelectorAll<HTMLElement>("[data-review-group-row]"))
+    .map((row, index) => {
+      const name = row.querySelector<HTMLInputElement>('[data-group-field="name"]')?.value.trim() ?? "";
+      const tag = row.querySelector<HTMLInputElement>('[data-group-field="tag"]')?.value.trim() ?? "";
+      return {
+        id: row.dataset.groupId || `group-${index + 1}`,
+        name: name || `分组 ${index + 1}`,
+        tag,
+        dailyLimit: readGroupNumber(row, "dailyLimit", 1, 0, 50),
+        templateQuestions: readGroupQuestions(row),
+        enabled: Boolean(row.querySelector<HTMLInputElement>('[data-group-field="enabled"]')?.checked),
+      };
+    })
+    .filter((group) => group.tag);
+}
+
+function readGroupQuestions(row: HTMLElement): string[] {
+  return Array.from(row.querySelectorAll<HTMLInputElement>('[data-group-field="templateQuestion"]'))
+    .map((input) => input.value.trim())
+    .filter(Boolean)
+    .slice(0, 10);
+}
+
+function refreshQuestionIndexes(row: HTMLElement): void {
+  row.querySelectorAll<HTMLElement>("[data-template-question-row]").forEach((questionRow, index) => {
+    const indexNode = questionRow.querySelector<HTMLElement>('[data-role="template-question-index"]');
+    if (indexNode) {
+      indexNode.textContent = String(index + 1);
+    }
+  });
+}
+
+function refreshQuestionSummary(row: HTMLElement): void {
+  const count = readGroupQuestions(row).length;
+  const summary = row.querySelector<HTMLElement>('[data-role="template-question-summary"]');
+  if (summary) {
+    summary.textContent = `默认问题 ${count} 个`;
+  }
 }
 
 function textInput(
@@ -209,6 +383,16 @@ function readOptionalString(root: HTMLElement, name: string): string {
 
 function readNumber(root: HTMLElement, name: string, fallback: number, min: number, max: number): number {
   const raw = root.querySelector<HTMLInputElement>(`input[name="${name}"]`)?.value;
+  const value = Number(raw);
+  if (!Number.isFinite(value)) {
+    return fallback;
+  }
+
+  return Math.min(Math.max(Math.trunc(value), min), max);
+}
+
+function readGroupNumber(root: HTMLElement, field: string, fallback: number, min: number, max: number): number {
+  const raw = root.querySelector<HTMLInputElement>(`[data-group-field="${field}"]`)?.value;
   const value = Number(raw);
   if (!Number.isFinite(value)) {
     return fallback;

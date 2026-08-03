@@ -17,7 +17,7 @@ describe("review-service", () => {
       date: "2026-07-26",
       generatedAt: "2026-07-26T08:00:00.000Z",
       updatedAt: "2026-07-26T08:00:00.000Z",
-      items: [{ itemId: "item-a", reason: "neverReviewed", status: "pending" }],
+      items: [{ itemId: "item-a", groupId: "default", reason: "neverReviewed", status: "pending" }],
     };
     const item: ReviewItem = {
       itemId: "item-a",
@@ -28,6 +28,10 @@ describe("review-service", () => {
       title: "Doc A",
       sourceTitle: "Doc A",
       path: "/Doc A",
+      groupId: "default",
+      groupName: "普通笔记",
+      groupTag: "review",
+      templateQuestions: ["问题"],
       contentPreview: "Doc A",
     };
 
@@ -51,7 +55,7 @@ describe("review-service", () => {
       date: "2026-07-26",
       generatedAt: "2026-07-26T08:00:00.000Z",
       updatedAt: "2026-07-26T08:00:00.000Z",
-      items: [{ itemId: "item-a", reason: "due", status: "reviewing", startedAt: "2026-07-26T08:00:00.000Z" }],
+      items: [{ itemId: "item-a", groupId: "default", reason: "due", status: "reviewing", startedAt: "2026-07-26T08:00:00.000Z" }],
     };
     const item: ReviewItem = {
       itemId: "item-a",
@@ -62,6 +66,10 @@ describe("review-service", () => {
       title: "Doc A",
       sourceTitle: "Doc A",
       path: "/Doc A",
+      groupId: "default",
+      groupName: "普通笔记",
+      groupTag: "review",
+      templateQuestions: ["问题"],
       contentPreview: "Doc A",
       reviewCount: 2,
       successStreak: 2,
@@ -88,7 +96,7 @@ describe("review-service", () => {
       date: "2026-07-26",
       generatedAt: "2026-07-26T08:00:00.000Z",
       updatedAt: "2026-07-26T08:00:00.000Z",
-      items: [{ itemId: "item-a", reason: "due", status: "reviewing", startedAt: "2026-07-26T08:00:00.000Z" }],
+      items: [{ itemId: "item-a", groupId: "default", reason: "due", status: "reviewing", startedAt: "2026-07-26T08:00:00.000Z" }],
     };
     const item: ReviewItem = {
       itemId: "item-a",
@@ -99,6 +107,10 @@ describe("review-service", () => {
       title: "Doc A",
       sourceTitle: "Doc A",
       path: "/Doc A",
+      groupId: "default",
+      groupName: "普通笔记",
+      groupTag: "review",
+      templateQuestions: ["问题"],
       contentPreview: "Doc A",
       reviewCount: 4,
       successStreak: 4,
@@ -125,7 +137,7 @@ describe("review-service", () => {
       date: "2026-07-26",
       generatedAt: "2026-07-26T08:00:00.000Z",
       updatedAt: "2026-07-26T08:00:00.000Z",
-      items: [{ itemId: "item-a", reason: "due", status: "reviewing", startedAt: "2026-07-26T08:00:00.000Z" }],
+      items: [{ itemId: "item-a", groupId: "default", reason: "due", status: "reviewing", startedAt: "2026-07-26T08:00:00.000Z" }],
     };
     const item: ReviewItem = {
       itemId: "item-a",
@@ -136,6 +148,10 @@ describe("review-service", () => {
       title: "Doc A",
       sourceTitle: "Doc A",
       path: "/Doc A",
+      groupId: "default",
+      groupName: "普通笔记",
+      groupTag: "review",
+      templateQuestions: ["问题"],
       contentPreview: "Doc A",
     };
 
@@ -156,7 +172,7 @@ describe("review-service", () => {
       date: "2026-07-26",
       generatedAt: "2026-07-26T08:00:00.000Z",
       updatedAt: "2026-07-26T08:00:00.000Z",
-      items: [{ itemId: "item-a", reason: "due", status: "reviewing", startedAt: "2026-07-26T08:00:00.000Z" }],
+      items: [{ itemId: "item-a", groupId: "default", reason: "due", status: "reviewing", startedAt: "2026-07-26T08:00:00.000Z" }],
     };
     const item: ReviewItem = {
       itemId: "item-a",
@@ -167,6 +183,10 @@ describe("review-service", () => {
       title: "Doc A",
       sourceTitle: "Doc A",
       path: "/Doc A",
+      groupId: "default",
+      groupName: "普通笔记",
+      groupTag: "review",
+      templateQuestions: ["问题"],
       contentPreview: "Doc A",
       reviewCount: 8,
       successStreak: 8,
@@ -192,7 +212,7 @@ describe("review-service", () => {
       date: "2026-07-26",
       generatedAt: "2026-07-26T08:00:00.000Z",
       updatedAt: "2026-07-26T08:00:00.000Z",
-      items: [{ itemId: "item-a", reason: "due", status: "reviewing", startedAt: "2026-07-26T08:00:00.000Z" }],
+      items: [{ itemId: "item-a", groupId: "default", reason: "due", status: "reviewing", startedAt: "2026-07-26T08:00:00.000Z" }],
     };
     const item: ReviewItem = {
       itemId: "item-a",
@@ -203,6 +223,10 @@ describe("review-service", () => {
       title: "Doc A",
       sourceTitle: "Doc A",
       path: "/Doc A",
+      groupId: "default",
+      groupName: "普通笔记",
+      groupTag: "review",
+      templateQuestions: ["问题"],
       contentPreview: "Doc A",
       reviewCount: 3,
       successStreak: 2,
@@ -229,7 +253,7 @@ describe("review-service", () => {
       date: "2026-07-26",
       generatedAt: "2026-07-26T08:00:00.000Z",
       updatedAt: "2026-07-26T08:00:00.000Z",
-      items: [{ itemId: "item-a", reason: "neverReviewed", status: "done" }],
+      items: [{ itemId: "item-a", groupId: "default", reason: "neverReviewed", status: "done" }],
     };
     const item: ReviewItem = {
       itemId: "item-a",
@@ -240,6 +264,10 @@ describe("review-service", () => {
       title: "Doc A",
       sourceTitle: "Doc A",
       path: "/Doc A",
+      groupId: "default",
+      groupName: "普通笔记",
+      groupTag: "review",
+      templateQuestions: ["问题"],
       contentPreview: "Doc A",
     };
 
@@ -265,6 +293,10 @@ describe("review-service", () => {
       title: "Doc A",
       sourceTitle: "Doc A",
       path: "/Doc A",
+      groupId: "default",
+      groupName: "普通笔记",
+      groupTag: "review",
+      templateQuestions: ["问题"],
       contentPreview: "Doc A",
       nextReviewAt: "2026-08-02",
       clozeCheckCount: 2,

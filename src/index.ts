@@ -170,7 +170,7 @@ export default class SiyuanReviewPlugin extends Plugin {
           ? syncDailyPlanAvailability(existingPlan, candidates)
           : buildDailyPlan({
               date,
-              dailyLimit: settings.dailyLimit,
+              reviewGroups: settings.reviewGroups,
               candidates,
               existingPlan,
             });

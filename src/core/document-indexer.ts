@@ -1,16 +1,36 @@
 import type { ReviewCandidate, ReviewItem } from "../types/review";
-import type { ReviewSettings } from "../types/settings";
+import type { ReviewGroupSettings, ReviewSettings } from "../types/settings";
 import type { SiyuanReviewBlockInfo } from "../types/siyuan";
 import { getBlockMarkdown, queryReviewBlocksByTag } from "../siyuan/document";
 import { normalizeReviewTag } from "../siyuan/tag";
 
 export async function scanReviewCandidates(settings: ReviewSettings): Promise<ReviewCandidate[]> {
-  const blocks = await queryReviewBlocksByTag({
-    notebookIds: settings.enabledNotebooks,
-    tag: normalizeReviewTag(settings.reviewTag),
-  });
+  const groups = settings.reviewGroups
+    .filter((group) => group.enabled)
+    .map((group) => ({
+      ...group,
+      tag: normalizeReviewTag(group.tag),
+    }))
+    .filter((group) => group.tag);
 
-  return Promise.all(blocks.map(toCandidate));
+  const candidatesById = new Map<string, { candidate: ReviewCandidate; groupIndex: number }>();
+
+  for (const [groupIndex, group] of groups.entries()) {
+    const blocks = await queryReviewBlocksByTag({
+      notebookIds: settings.enabledNotebooks,
+      tag: group.tag,
+    });
+
+    for (const block of blocks) {
+      const candidate = await toCandidate(block, group);
+      const existing = candidatesById.get(candidate.itemId);
+      if (!existing || shouldReplaceGroup(candidate.groupTag, groupIndex, existing.candidate.groupTag, existing.groupIndex)) {
+        candidatesById.set(candidate.itemId, { candidate, groupIndex });
+      }
+    }
+  }
+
+  return Array.from(candidatesById.values()).map((value) => value.candidate);
 }
 
 export function mergeCandidatesWithStoredState(
@@ -25,7 +45,7 @@ export function mergeCandidatesWithStoredState(
   }));
 }
 
-async function toCandidate(block: SiyuanReviewBlockInfo): Promise<ReviewCandidate> {
+async function toCandidate(block: SiyuanReviewBlockInfo, group: ReviewGroupSettings): Promise<ReviewCandidate> {
   const itemType = block.blockType === "d" ? "document" : "block";
   const sourceTitle = block.docTitle || "未命名文档";
   const contentPreview =
@@ -41,9 +61,27 @@ async function toCandidate(block: SiyuanReviewBlockInfo): Promise<ReviewCandidat
     title,
     sourceTitle,
     path: block.path,
+    groupId: group.id,
+    groupName: group.name,
+    groupTag: group.tag,
+    templateQuestions: group.templateQuestions,
     contentPreview,
     exists: true,
   };
+}
+
+function shouldReplaceGroup(nextTag: string, nextIndex: number, currentTag: string, currentIndex: number): boolean {
+  const nextSpecificity = getTagSpecificity(nextTag);
+  const currentSpecificity = getTagSpecificity(currentTag);
+  if (nextSpecificity !== currentSpecificity) {
+    return nextSpecificity > currentSpecificity;
+  }
+
+  return nextIndex < currentIndex;
+}
+
+function getTagSpecificity(tag: string): number {
+  return tag.split("/").filter(Boolean).length;
 }
 
 async function resolveBlockPreview(block: SiyuanReviewBlockInfo): Promise<string> {

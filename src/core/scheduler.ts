@@ -5,11 +5,12 @@ import type {
   DailyPlanReason,
   ReviewCandidate,
 } from "../types/review";
+import type { ReviewGroupSettings } from "../types/settings";
 import { isDue } from "../utils/date";
 
 type BuildDailyPlanInput = {
   date: string;
-  dailyLimit: number;
+  reviewGroups: ReviewGroupSettings[];
   candidates: ReviewCandidate[];
   existingPlan?: DailyPlan;
   nowIso?: string;
@@ -28,23 +29,41 @@ const MAX_LAPSE_PRIORITY = 200;
 
 export function buildDailyPlan(input: BuildDailyPlanInput): DailyPlan {
   const nowIso = input.nowIso ?? new Date().toISOString();
+  const enabledGroups = input.reviewGroups.filter((group) => group.enabled && group.dailyLimit > 0);
+  const totalLimit = enabledGroups.reduce((sum, group) => sum + group.dailyLimit, 0);
   const preservedItems = getPreservedItems(input.existingPlan);
   const preservedItemIds = new Set(preservedItems.map((item) => item.itemId));
-  const remainingSlots = Math.max(input.dailyLimit - preservedItems.length, 0);
+  const selectedIds = new Set(preservedItemIds);
+  const selectedItems: DailyPlanItem[] = [];
+  const availableCandidates = input.candidates
+    .filter((candidate) => candidate.exists)
+    .filter((candidate) => !preservedItemIds.has(candidate.itemId));
 
-  const selectedItems = rankCandidates(input.candidates, input.date)
-    .filter(({ candidate }) => candidate.exists)
-    .filter(({ candidate }) => !preservedItemIds.has(candidate.itemId))
+  for (const group of enabledGroups) {
+    const preservedInGroup = preservedItems.filter((item) => item.groupId === group.id).length;
+    const groupSlots = Math.max(group.dailyLimit - preservedInGroup, 0);
+    const groupItems = rankCandidates(
+      availableCandidates.filter((candidate) => candidate.groupId === group.id && !selectedIds.has(candidate.itemId)),
+      input.date,
+    )
+      .slice(0, groupSlots)
+      .map(toPlanItem);
+
+    groupItems.forEach((item) => selectedIds.add(item.itemId));
+    selectedItems.push(...groupItems);
+  }
+
+  const remainingSlots = Math.max(totalLimit - preservedItems.length - selectedItems.length, 0);
+  const fillItems = rankCandidates(
+    availableCandidates.filter((candidate) => !selectedIds.has(candidate.itemId)),
+    input.date,
+  )
     .slice(0, remainingSlots)
-    .map<DailyPlanItem>(({ candidate, reason }) => ({
-      itemId: candidate.itemId,
-      reason,
-      status: "pending",
-    }));
+    .map(toPlanItem);
 
   return {
     date: input.date,
-    items: [...preservedItems, ...selectedItems],
+    items: [...preservedItems, ...selectedItems, ...fillItems],
     generatedAt: input.existingPlan?.generatedAt ?? nowIso,
     updatedAt: nowIso,
   };
@@ -69,18 +88,29 @@ export function syncDailyPlanAvailability(
   candidates: ReviewCandidate[],
   nowIso = new Date().toISOString(),
 ): DailyPlan {
-  const availableItemIds = new Set(candidates.filter((candidate) => candidate.exists).map((candidate) => candidate.itemId));
+  const candidatesById = new Map(candidates.filter((candidate) => candidate.exists).map((candidate) => [candidate.itemId, candidate]));
   let changed = false;
 
   const items = plan.items.map((item) => {
-    const nextStatus = getAvailabilitySyncedStatus(item.status, availableItemIds.has(item.itemId));
+    const candidate = candidatesById.get(item.itemId);
+    const nextStatus = getAvailabilitySyncedStatus(item.status, Boolean(candidate));
+    const nextGroupId = candidate?.groupId ?? item.groupId;
     if (nextStatus === item.status) {
-      return item;
+      if (nextGroupId === item.groupId) {
+        return item;
+      }
+
+      changed = true;
+      return {
+        ...item,
+        groupId: nextGroupId,
+      };
     }
 
     changed = true;
     return {
       ...item,
+      groupId: nextGroupId,
       status: nextStatus,
     };
   });
@@ -112,6 +142,15 @@ function getAvailabilitySyncedStatus(status: DailyPlanItemStatus, isAvailable: b
   }
 
   return status === "missing" ? "pending" : status;
+}
+
+function toPlanItem({ candidate, reason }: ScoredCandidate): DailyPlanItem {
+  return {
+    itemId: candidate.itemId,
+    groupId: candidate.groupId,
+    reason,
+    status: "pending",
+  };
 }
 
 function scoreCandidate(candidate: ReviewCandidate, date: string): ScoredCandidate {

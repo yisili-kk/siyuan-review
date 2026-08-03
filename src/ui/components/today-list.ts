@@ -8,7 +8,9 @@ export function renderTodayList(plan: DailyPlan, items: Record<string, ReviewIte
       const statusClass = `siyuan-review-item--${planItem.status}`;
       const status = statusLabel(planItem.status);
       const meta = metaLabel(planItem.status, planItem.reason, item);
+      const group = item?.groupName ?? "";
       const source = item && item.itemType === "block" ? `来自：${item.sourceTitle}` : "";
+      const sourceParts = [group, source].filter(Boolean).join(" · ");
       const disabled = planItem.status === "missing";
 
       return `
@@ -17,7 +19,7 @@ export function renderTodayList(plan: DailyPlan, items: Record<string, ReviewIte
     <span class="siyuan-review-item__title">${escapeHtml(title)}</span>
     <span class="siyuan-review-item__badge">${escapeHtml(status)}</span>
   </span>
-  ${source ? `<span class="siyuan-review-item__source">${escapeHtml(source)}</span>` : ""}
+  ${sourceParts ? `<span class="siyuan-review-item__source">${escapeHtml(sourceParts)}</span>` : ""}
   <span class="siyuan-review-item__reason">${escapeHtml(meta)}</span>
 </button>`;
     })

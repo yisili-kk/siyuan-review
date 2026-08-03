@@ -22,10 +22,50 @@ export const BLOCK_TEMPLATE_QUESTIONS: TemplateQuestion[] = [
   "下一步可以补充、拆分或重构哪里？",
 ];
 
+export const LANGUAGE_TEMPLATE_QUESTIONS: TemplateQuestion[] = [
+  "这个词或短语的核心含义是什么？",
+  "它最常出现在哪些语境或搭配里？",
+  "能否用自己的话造一个自然的例句？",
+  "它和相近表达有什么区别？",
+  "哪一个例句最能帮助记住它？",
+];
+
+export const RESOURCE_TEMPLATE_QUESTIONS: TemplateQuestion[] = [
+  "这份资源最值得保留的信息是什么？",
+  "它适合解决哪一类问题或任务？",
+  "后续使用它时最重要的入口在哪里？",
+  "是否需要补充来源、摘要或使用场景？",
+  "它可以和哪个项目或主题建立连接？",
+];
+
 export const DEFAULT_SETTINGS: ReviewSettings = {
   enabledNotebooks: [],
-  dailyLimit: 5,
-  reviewTag: "review",
+  reviewGroups: [
+    {
+      id: "default",
+      name: "普通笔记",
+      tag: "review",
+      dailyLimit: 2,
+      templateQuestions: TEMPLATE_QUESTIONS,
+      enabled: true,
+    },
+    {
+      id: "language",
+      name: "语言点",
+      tag: "review/language",
+      dailyLimit: 3,
+      templateQuestions: LANGUAGE_TEMPLATE_QUESTIONS,
+      enabled: true,
+    },
+    {
+      id: "resource",
+      name: "资源笔记",
+      tag: "review/resource",
+      dailyLimit: 1,
+      templateQuestions: RESOURCE_TEMPLATE_QUESTIONS,
+      enabled: true,
+    },
+  ],
   intervals: {
     valuable: 14,
     normal: 7,

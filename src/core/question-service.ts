@@ -8,7 +8,12 @@ export type AiQuestionGenerator = (input: {
   settings: AiSettings;
 }) => Promise<string[]>;
 
-export function getTemplateQuestions(itemType: ReviewItemType = "document"): string[] {
+export function getTemplateQuestions(itemType: ReviewItemType = "document", item?: ReviewItem): string[] {
+  const groupQuestions = item?.templateQuestions.map((question) => question.trim()).filter(Boolean) ?? [];
+  if (groupQuestions.length > 0) {
+    return groupQuestions.slice(0, 10);
+  }
+
   return [...(itemType === "block" ? BLOCK_TEMPLATE_QUESTIONS : TEMPLATE_QUESTIONS)];
 }
 
@@ -28,7 +33,7 @@ export async function getReviewQuestions(input: {
   if (!canUseAiQuestionGeneration(input.ai) || !input.generateAiQuestions) {
     return {
       source: "template",
-      questions: getTemplateQuestions(input.item.itemType),
+      questions: getTemplateQuestions(input.item.itemType, input.item),
       generatedAt: nowIso,
     };
   }
@@ -42,19 +47,19 @@ export async function getReviewQuestions(input: {
 
     return {
       source: "ai",
-      questions: normalizeQuestions(questions, input.item.itemType),
+      questions: normalizeQuestions(questions, input.item),
       generatedAt: nowIso,
     };
   } catch {
     return {
       source: "template",
-      questions: getTemplateQuestions(input.item.itemType),
+      questions: getTemplateQuestions(input.item.itemType, input.item),
       generatedAt: nowIso,
     };
   }
 }
 
-function normalizeQuestions(questions: string[], itemType: ReviewItemType): string[] {
+function normalizeQuestions(questions: string[], item: ReviewItem): string[] {
   const cleaned = questions.map((question) => question.trim()).filter(Boolean);
-  return cleaned.length > 0 ? cleaned.slice(0, 5) : getTemplateQuestions(itemType);
+  return cleaned.length > 0 ? cleaned.slice(0, 5) : getTemplateQuestions(item.itemType, item);
 }

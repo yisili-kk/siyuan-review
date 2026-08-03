@@ -28,10 +28,18 @@ export type DataRetentionSettings = {
   pruneMissingDocsDays: number;
 };
 
+export type ReviewGroupSettings = {
+  id: string;
+  name: string;
+  tag: string;
+  dailyLimit: number;
+  templateQuestions: string[];
+  enabled: boolean;
+};
+
 export type ReviewSettings = {
   enabledNotebooks: string[];
-  dailyLimit: number;
-  reviewTag: string;
+  reviewGroups: ReviewGroupSettings[];
   intervals: ReviewIntervals;
   scheduling: ReviewSchedulingSettings;
   ai: AiSettings;
