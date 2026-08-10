@@ -11,6 +11,7 @@ const DOCK_TYPE = "siyuan-review-dock";
 const DOCK_ICON = "#iconSiyuanReviewDue";
 const DOCK_BUTTON_CLASS = "siyuan-review-dock-button";
 const LEGACY_DOCK_ICONS = new Set(["#iconRefresh"]);
+const DOCK_OPEN_REFRESH_COOLDOWN_MS = 5000;
 let dockButtonPendingCount = 0;
 let dockButtonUpdateId = 0;
 let dockRegistered = false;
@@ -35,6 +36,7 @@ export type DockSnapshot = {
 };
 
 export type DockActions = {
+  onOpen?(): Promise<void>;
   onRefresh(): Promise<void>;
   onRegenerate(): Promise<void>;
   onRegenerateQuestions(itemId: string): Promise<void>;
@@ -57,6 +59,37 @@ export type DockController = {
 export function createDockController(plugin: Plugin, actions: DockActions): DockController {
   let root: HTMLElement | undefined;
   let snapshot: DockSnapshot = { items: {} };
+  let lastOpenRefreshAt = 0;
+  let openRefreshInFlight = false;
+
+  function triggerOpenRefresh(): void {
+    if (!actions.onOpen || openRefreshInFlight) {
+      return;
+    }
+
+    const now = Date.now();
+    if (now - lastOpenRefreshAt < DOCK_OPEN_REFRESH_COOLDOWN_MS) {
+      return;
+    }
+
+    lastOpenRefreshAt = now;
+    openRefreshInFlight = true;
+    void actions.onOpen().finally(() => {
+      openRefreshInFlight = false;
+    });
+  }
+
+  function handleDocumentClick(event: MouseEvent): void {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) {
+      return;
+    }
+
+    const button = target.closest<HTMLElement>(".dock__item");
+    if (button && isReviewDockButton(button)) {
+      triggerOpenRefresh();
+    }
+  }
 
   function render(nextSnapshot: DockSnapshot = snapshot): void {
     snapshot = nextSnapshot;
@@ -86,21 +119,25 @@ export function createDockController(plugin: Plugin, actions: DockActions): Dock
           dockRoot = root;
           root.classList.add("siyuan-review-dock");
           render(snapshot);
+          triggerOpenRefresh();
         },
         update() {
           render(snapshot);
+          triggerOpenRefresh();
         },
         destroy() {
           dockRoot = undefined;
           root = undefined;
         },
       });
+      document.addEventListener("click", handleDocumentClick, true);
       updateDockButtonPendingState(getPendingReviewCount(snapshot));
     },
     render,
     dispose() {
       dockRegistered = false;
       dockRoot = undefined;
+      document.removeEventListener("click", handleDocumentClick, true);
       updateDockButtonPendingState(0);
       root = undefined;
     },

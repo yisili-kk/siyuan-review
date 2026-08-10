@@ -32,6 +32,7 @@ export default class SiyuanReviewPlugin extends Plugin {
   private openingClozeItemIds = new Set<string>();
   private processingFeedbackDrafts = new Map<string, ProcessingFeedbackDraft>();
   private startupRefreshTimer?: ReturnType<typeof globalThis.setTimeout>;
+  private storesLoaded = false;
   private unloaded = false;
 
   async onload(): Promise<void> {
@@ -47,6 +48,9 @@ export default class SiyuanReviewPlugin extends Plugin {
     });
 
     this.dock = createDockController(this, {
+      onOpen: async () => {
+        await this.refreshTodayPlan();
+      },
       onRefresh: async () => {
         this.selectedItemId = undefined;
         await this.refreshTodayPlan();
@@ -105,6 +109,7 @@ export default class SiyuanReviewPlugin extends Plugin {
       showMessage("文档回顾数据读取失败，本次将使用空状态。", 3000, "error");
     }
 
+    this.storesLoaded = true;
     this.renderCurrentDock();
     this.scheduleStartupRefresh();
     console.info("[siyuan-review] plugin loaded");
@@ -147,7 +152,7 @@ export default class SiyuanReviewPlugin extends Plugin {
     }
 
     const store = this.reviewStore;
-    if (!store) {
+    if (!store || !this.storesLoaded) {
       return false;
     }
 
@@ -176,6 +181,7 @@ export default class SiyuanReviewPlugin extends Plugin {
             });
 
       store.setDailyPlan(plan);
+      this.clearSelectionIfUnavailable(plan);
       await this.pruneStoredData(settings, candidates.map((candidate) => candidate.itemId));
       await store.save();
       if (this.unloaded) {
@@ -191,6 +197,20 @@ export default class SiyuanReviewPlugin extends Plugin {
       showMessage("文档回顾列表刷新失败，请稍后重试。", 3000, "error");
       return false;
     }
+  }
+
+  private clearSelectionIfUnavailable(plan: DailyPlan): void {
+    if (!this.selectedItemId) {
+      return;
+    }
+
+    const selectedPlanItem = plan.items.find((item) => item.itemId === this.selectedItemId);
+    if (selectedPlanItem && selectedPlanItem.status !== "missing") {
+      return;
+    }
+
+    this.processingFeedbackDrafts.delete(this.selectedItemId);
+    this.selectedItemId = undefined;
   }
 
   private async selectItem(itemId: string): Promise<void> {
