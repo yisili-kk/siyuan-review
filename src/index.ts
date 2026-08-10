@@ -19,6 +19,7 @@ import { REVIEW_ICONS } from "./ui/icons";
 import type { DailyPlan, ReviewCandidate, ReviewFeedback, ReviewItem } from "./types/review";
 import { listNotebooks } from "./siyuan/notebook";
 import { generateAiQuestions } from "./ai/question-generator";
+import type { ReviewSettings } from "./types/settings";
 import "./ui/styles.css";
 
 export default class SiyuanReviewPlugin extends Plugin {
@@ -32,6 +33,9 @@ export default class SiyuanReviewPlugin extends Plugin {
   private openingClozeItemIds = new Set<string>();
   private processingFeedbackDrafts = new Map<string, ProcessingFeedbackDraft>();
   private startupRefreshTimer?: ReturnType<typeof globalThis.setTimeout>;
+  private activeRefreshTask?: Promise<boolean>;
+  private activePoolSyncTask?: { key: string; task: Promise<ReviewCandidate[]> };
+  private queuedRegenerateRefresh = false;
   private storesLoaded = false;
   private unloaded = false;
 
@@ -147,6 +151,27 @@ export default class SiyuanReviewPlugin extends Plugin {
   }
 
   private async createOrRefreshTodayPlan(forceRegenerate: boolean): Promise<boolean> {
+    if (this.activeRefreshTask) {
+      if (!forceRegenerate) {
+        return this.activeRefreshTask;
+      }
+
+      this.queuedRegenerateRefresh = true;
+      await this.activeRefreshTask;
+      if (!this.queuedRegenerateRefresh) {
+        return true;
+      }
+    }
+
+    this.queuedRegenerateRefresh = false;
+    this.activeRefreshTask = this.runTodayPlanRefresh(forceRegenerate).finally(() => {
+      this.activeRefreshTask = undefined;
+    });
+
+    return this.activeRefreshTask;
+  }
+
+  private async runTodayPlanRefresh(forceRegenerate: boolean): Promise<boolean> {
     if (this.unloaded) {
       return false;
     }
@@ -156,19 +181,16 @@ export default class SiyuanReviewPlugin extends Plugin {
       return false;
     }
 
-    const data = store.getData();
     const date = toDateKey();
 
     try {
       const settings = (await this.settingsStore?.load()) ?? DEFAULT_SETTINGS;
-      const candidates = mergeCandidatesWithStoredState(await scanReviewCandidates(settings), data.items);
+      const candidates = await this.syncReviewPool(settings);
       if (this.unloaded) {
         return false;
       }
 
-      store.upsertItems(candidates);
-      store.upsertItems(markMissingItems(data.items, candidates.map((candidate) => candidate.itemId), date));
-
+      const data = store.getData();
       const existingPlan = data.dailyPlans[date];
       const plan =
         existingPlan && !forceRegenerate
@@ -197,6 +219,44 @@ export default class SiyuanReviewPlugin extends Plugin {
       showMessage("文档回顾列表刷新失败，请稍后重试。", 3000, "error");
       return false;
     }
+  }
+
+  private async syncReviewPool(settings: ReviewSettings): Promise<ReviewCandidate[]> {
+    const syncKey = buildReviewPoolSyncKey(settings);
+    while (this.activePoolSyncTask) {
+      if (this.activePoolSyncTask.key === syncKey) {
+        return this.activePoolSyncTask.task;
+      }
+
+      await this.activePoolSyncTask.task.catch(() => []);
+    }
+
+    const task = this.runReviewPoolSync(settings).finally(() => {
+      if (this.activePoolSyncTask?.task === task) {
+        this.activePoolSyncTask = undefined;
+      }
+    });
+    this.activePoolSyncTask = { key: syncKey, task };
+    return task;
+  }
+
+  private async runReviewPoolSync(settings: ReviewSettings): Promise<ReviewCandidate[]> {
+    const store = this.reviewStore;
+    if (!store || !this.storesLoaded || this.unloaded) {
+      return [];
+    }
+
+    const data = store.getData();
+    const date = toDateKey();
+    const candidates = mergeCandidatesWithStoredState(await scanReviewCandidates(settings), data.items);
+    if (this.unloaded) {
+      return [];
+    }
+
+    store.upsertItems(candidates);
+    store.upsertItems(markMissingItems(data.items, candidates.map((candidate) => candidate.itemId), date));
+    await store.save();
+    return candidates;
   }
 
   private clearSelectionIfUnavailable(plan: DailyPlan): void {
@@ -373,13 +433,8 @@ export default class SiyuanReviewPlugin extends Plugin {
     }
 
     const data = store.getData();
-    const date = toDateKey();
     try {
-      const candidates = mergeCandidatesWithStoredState(await scanReviewCandidates(settings), data.items);
-      store.upsertItems(candidates);
-      store.upsertItems(markMissingItems(data.items, candidates.map((candidate) => candidate.itemId), date));
-      await store.save();
-      return candidates;
+      return await this.syncReviewPool(settings);
     } catch (error) {
       console.warn("[siyuan-review] failed to scan review pool, using stored data", error);
       showMessage("回顾池扫描失败，已展示本地已有数据。", 3000, "error");
@@ -593,4 +648,17 @@ function createPluginPersistAdapter(plugin: Plugin): PersistAdapter {
       await plugin.saveData(name, data);
     },
   };
+}
+
+function buildReviewPoolSyncKey(settings: ReviewSettings): string {
+  return JSON.stringify({
+    notebooks: settings.enabledNotebooks,
+    groups: settings.reviewGroups.map((group) => ({
+      id: group.id,
+      name: group.name,
+      tag: group.tag,
+      enabled: group.enabled,
+      templateQuestions: group.templateQuestions,
+    })),
+  });
 }
